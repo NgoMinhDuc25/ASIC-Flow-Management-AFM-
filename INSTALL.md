@@ -1,7 +1,7 @@
 # AFM — Hướng dẫn cài đặt (INSTALL.md)
 
 Tài liệu này hướng dẫn từ cài thư viện yêu cầu cho tới khởi chạy AFM (cả CLI lẫn GUI),
-cho các distro mục tiêu trong spec (**CentOS 7**, **Rocky Linux**) cũng như Ubuntu/macOS
+cho các distro mục tiêu trong spec (**CentOS 7**) cvoiws gui PyQt5
 để dev/test.
 
 ---
@@ -18,48 +18,7 @@ cho các distro mục tiêu trong spec (**CentOS 7**, **Rocky Linux**) cũng nh�
 
 ---
 
-## 2. Cài Python + Tkinter theo distro
-
-### 2.1 Rocky Linux 8 / 9
-
-```bash
-sudo dnf install -y python3 python3-pip python3-tkinter
-```
-
-### 2.2 CentOS 7
-
-CentOS 7 mặc định chỉ có Python 2. Cài Python 3 qua `dnf`/`yum`:
-
-```bash
-sudo yum install -y python3 python3-pip python3-tkinter
-# nếu gói python3 chưa có sẵn trong repo, bật thêm EPEL trước:
-sudo yum install -y epel-release
-sudo yum install -y python3 python3-pip python3-tkinter
-```
-
-Kiểm tra:
-
-```bash
-python3 --version      # >= 3.6
-python3 -m tkinter      # nếu mở được cửa sổ test nhỏ -> Tkinter OK
-```
-
-### 2.3 Ubuntu / Debian (tham khảo cho máy dev)
-
-```bash
-sudo apt update
-sudo apt install -y python3 python3-pip python3-venv python3-tk
-```
-
-### 2.4 macOS (tham khảo cho máy dev)
-
-```bash
-brew install python-tk
-```
-
----
-
-## 3. Giải nén / lấy source code
+## 2. Giải nén / lấy source code
 
 Giải nén file `afm_source_code.zip` đã được cung cấp (hoặc `git clone` nếu bạn đưa
 project lên git nội bộ):
@@ -73,9 +32,9 @@ ls
 
 ---
 
-## 4. Virtual environment
+## 3. Virtual environment
 
-Từ đây trở đi, `install.sh` (mục 5.1) sẽ **tự động tạo và cài vào venv giúp bạn** — bạn có
+Từ đây trở đi, `install.sh` sẽ **tự động tạo và cài vào venv giúp bạn** — bạn có
 thể bỏ qua bước này và nhảy thẳng xuống mục 5.1.
 
 Chỉ cần tự tạo venv thủ công nếu bạn muốn kiểm soát từng bước (mục 5.2):
@@ -93,9 +52,9 @@ tạo venv.
 
 ---
 
-## 5. Cài đặt AFM
+## 4. Cài đặt AFM
 
-### 5.1 Cách khuyến nghị — script `install.sh` (tự tạo venv + cài + đăng ký alias)
+### 4.1 Cách khuyến nghị — script `install.sh` (tự tạo venv + cài + đăng ký alias)
 
 Từ thư mục gốc `afm_project/` (nơi có `pyproject.toml`):
 
@@ -125,7 +84,7 @@ thế alias cũ bằng alias mới, không bị trùng dòng trong `~/.bashrc`.
 > Script dùng `python3 -m venv`, nên máy bạn cần có sẵn module `venv` của Python
 > (mặc định có sẵn trên CentOS 7 / Rocky Linux cùng gói `python3`).
 
-### 5.2 Cách thủ công (không dùng script)
+### 4.2 Cách thủ công (không dùng script)
 
 Nếu muốn tự kiểm soát từng bước thay vì chạy `install.sh`:
 
@@ -146,7 +105,7 @@ hoặc mỗi lần dùng lại `source .venv/bin/activate` theo đường dẫn 
 > ```
 > Cách này không khuyến nghị bằng venv vì có thể xung đột package hệ thống.
 
-### 5.3 Kiểm tra cài đặt thành công
+### 4.3 Kiểm tra cài đặt thành công
 
 ```bash
 afm-env        # nếu dùng install.sh — kích hoạt venv từ bất kỳ đâu
@@ -164,12 +123,12 @@ python3 -m afm.cli --help
 
 ---
 
-## 6. Khởi chạy ứng dụng
+## 5. Khởi chạy ứng dụng
 
 > Nếu dùng `install.sh` ở mục 5.1, nhớ kích hoạt venv trước bằng `afm-env` (ở bất kỳ terminal
 > mới nào) trước khi chạy các lệnh `afm` bên dưới.
 
-### 6.1 Khởi tạo project mới (F1) rồi mở GUI — đúng flow trong spec
+### 5.1 Khởi tạo project mới (F1) rồi mở GUI — đúng flow trong spec
 
 ```bash
 mkdir -p ~/asic_projects/RISCV_PKL
@@ -180,7 +139,7 @@ afm -init
 - Nếu thư mục chưa có project: dùng menu **Project > Create Flow** trong GUI để khởi tạo.
 - Nếu thư mục đã có `project_config.yaml`: GUI load luôn Flow Tree hiện có.
 
-### 6.2 Khởi tạo project qua CLI (không cần GUI, phù hợp CI/automation)
+### 5.2 Khởi tạo project qua CLI (không cần GUI, phù hợp CI/automation)
 
 ```bash
 afm --path ~/asic_projects/RISCV_PKL init \
@@ -188,13 +147,13 @@ afm --path ~/asic_projects/RISCV_PKL init \
   --steps Import,Floorplan,Placement,CTS,PostCTS,Routing,STA,Signoff
 ```
 
-### 6.3 Mở GUI cho project đã tồn tại
+### 5.3 Mở GUI cho project đã tồn tại
 
 ```bash
 afm --path ~/asic_projects/RISCV_PKL gui
 ```
 
-### 6.4 Các thao tác CLI khác (F2–F6)
+### 5.4 Các thao tác CLI khác (F2–F6)
 
 ```bash
 # F2 - đặt rule tên version
@@ -219,7 +178,7 @@ afm --path ~/asic_projects/RISCV_PKL tree --step CTS
 
 ---
 
-## 7. Chạy test (tùy chọn, để xác nhận môi trường hoạt động đúng)
+## 6. Chạy test (tùy chọn, để xác nhận môi trường hoạt động đúng)
 
 ```bash
 pip install --break-system-packages -q pytest    # hoặc bỏ cờ nếu đang dùng venv
@@ -230,7 +189,7 @@ Kết quả mong đợi: 7 test pass, bao phủ toàn bộ F1–F6.
 
 ---
 
-## 8. Xử lý sự cố thường gặp
+## 7. Xử lý sự cố thường gặp
 
 | Lỗi | Nguyên nhân | Cách khắc phục |
 |---|---|---|
@@ -245,7 +204,7 @@ Kết quả mong đợi: 7 test pass, bao phủ toàn bộ F1–F6.
 
 ---
 
-## 9. Gỡ cài đặt
+## 8. Gỡ cài đặt
 
 ```bash
 pip uninstall afm
