@@ -12,8 +12,6 @@ This module orchestrates ProjectManager + StepManager and touches the
 filesystem (folder creation / copying).
 """
 
-from __future__ import annotations
-
 import shutil
 import uuid
 from datetime import date

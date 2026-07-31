@@ -14,4 +14,4 @@ See ASIC_Flow_Management_Specification.docx / Software_Specification.docx
 for the full design document this package implements.
 """
 
-__version__ = "0.1.0"
+__version__ = "0.2.2"

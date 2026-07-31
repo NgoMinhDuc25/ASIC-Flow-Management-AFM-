@@ -15,10 +15,9 @@ Implements the layout from spec section 5:
 Color scheme per NFR: dark blue + white.
 """
 
-from __future__ import annotations
-
 import os
 import sys
+from typing import Optional
 import platform
 import subprocess
 from pathlib import Path
@@ -145,18 +144,18 @@ class AFMApp(QtWidgets.QMainWindow):
         # Menu Bar
         menubar = self.menuBar()
         project_menu = menubar.addMenu("Project")
-        
+
         action_create = QtWidgets.QAction("Create Flow (F1)...", self)
         action_create.setShortcut("F1")
         action_create.triggered.connect(self.action_create_flow)
         project_menu.addAction(action_create)
-        
+
         action_edit = QtWidgets.QAction("Edit Flow (folder/naming rules)...", self)
         action_edit.triggered.connect(self.action_edit_flow)
         project_menu.addAction(action_edit)
-        
+
         project_menu.addSeparator()
-        
+
         action_quit = QtWidgets.QAction("Quit", self)
         action_quit.triggered.connect(self.close)
         project_menu.addAction(action_quit)
@@ -165,7 +164,7 @@ class AFMApp(QtWidgets.QMainWindow):
         central_widget = QtWidgets.QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QtWidgets.QVBoxLayout(central_widget)
-        
+
         splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
         main_layout.addWidget(splitter)
 
@@ -288,15 +287,15 @@ class AFMApp(QtWidgets.QMainWindow):
             config = pm.load()
         except ProjectNotFoundError:
             return
-            
+
         root_node = QtWidgets.QTreeWidgetItem(self.flow_tree, [config.project_name])
         root_node.setData(0, QtCore.Qt.UserRole, "__root__")
         root_node.setExpanded(True)
-        
+
         for step in config.step_order:
             item = QtWidgets.QTreeWidgetItem(root_node, [step])
             item.setData(0, QtCore.Qt.UserRole, f"step::{step}")
-            
+
         self._set_status(f"Project '{config.project_name}' — {len(config.step_order)} step(s).")
 
     def refresh_step_tree(self, step_name: str) -> None:
@@ -385,15 +384,15 @@ class AFMApp(QtWidgets.QMainWindow):
         menu = QtWidgets.QMenu(self)
         action_open = menu.addAction("Open folder")
         action_open.triggered.connect(lambda: self.on_step_double_click(item, 0))
-        
+
         action_clone = menu.addAction("Clone Version")
         action_clone.triggered.connect(self.action_clone_version)
-        
+
         action_jump = menu.addAction("Jump Step...")
         action_jump.triggered.connect(self.action_jump_step)
-        
+
         menu.addSeparator()
-        
+
         action_delete = menu.addAction("Delete Version")
         action_delete.triggered.connect(self.action_delete_version)
 
@@ -521,7 +520,7 @@ class AFMApp(QtWidgets.QMainWindow):
         except AFMError as e:
             QtWidgets.QMessageBox.critical(self, "AFM", str(e))
             return
-            
+
         self._show_step_detail(step)
         self._set_status(f"Naming rule updated for '{step}'.")
 
@@ -566,7 +565,7 @@ class AFMApp(QtWidgets.QMainWindow):
         except AFMError as e:
             QtWidgets.QMessageBox.critical(self, "AFM", str(e))
             return
-            
+
         self.refresh_step_tree(step)
         self._show_version_detail(step, v.id)
         self._set_status(f"Created version '{v.name}'.")
@@ -581,7 +580,7 @@ class AFMApp(QtWidgets.QMainWindow):
         except AFMError as e:
             QtWidgets.QMessageBox.critical(self, "AFM", str(e))
             return
-            
+
         self.refresh_step_tree(step)
         self._show_version_detail(step, v.id)
         self._set_status(f"Cloned into '{v.name}'.")
@@ -592,7 +591,7 @@ class AFMApp(QtWidgets.QMainWindow):
 
         sm = StepManager(self.project_root, step)
         version = sm.get_version(version_id)
-        
+
         reply = QtWidgets.QMessageBox.question(
             self, "AFM", f"Delete version '{version.name}' and its folder? This cannot be undone.",
             QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No
@@ -605,7 +604,7 @@ class AFMApp(QtWidgets.QMainWindow):
         except AFMError as e:
             QtWidgets.QMessageBox.critical(self, "AFM", str(e))
             return
-            
+
         self.refresh_step_tree(step)
         self._write_detail("")
         self._set_status(f"Deleted version '{version.name}'.")
@@ -617,7 +616,7 @@ class AFMApp(QtWidgets.QMainWindow):
         pm = ProjectManager(self.project_root)
         config = pm.load()
         candidates = [s for s in config.step_order if s != from_step]
-        
+
         to_step, ok = QtWidgets.QInputDialog.getItem(
             self, "Jump Step", "Target step:", candidates, 0, False
         )
@@ -629,7 +628,7 @@ class AFMApp(QtWidgets.QMainWindow):
         except AFMError as e:
             QtWidgets.QMessageBox.critical(self, "AFM", str(e))
             return
-            
+
         self._set_status(f"Jumped: created '{v.name}' in step '{to_step}'.")
         if self.selected_step == to_step:
             self.refresh_step_tree(to_step)
@@ -638,7 +637,7 @@ class AFMApp(QtWidgets.QMainWindow):
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
-    def _require_selected_step(self) -> str | None:
+    def _require_selected_step(self) -> Optional[str]:
         if not self.selected_step:
             QtWidgets.QMessageBox.warning(self, "AFM", "Select a step first (click a step in the Flow Tree).")
             return None
@@ -656,10 +655,10 @@ def launch_gui(project_root: Path) -> None:
     app = QtWidgets.QApplication.instance()
     if app is None:
         app = QtWidgets.QApplication(sys.argv)
-        
+
     window = AFMApp(project_root)
     window.show()
-    
+
     # Exec application event loop
     app.exec_()
 

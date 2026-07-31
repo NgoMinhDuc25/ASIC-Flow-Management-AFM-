@@ -15,8 +15,6 @@ base name, per spec:
     Jul_placement_ver01_j_Jul_cts_ver01   (jump from step CTS's version)
 """
 
-from __future__ import annotations
-
 from datetime import date as date_cls
 from typing import Dict, List
 

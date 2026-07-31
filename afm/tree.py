@@ -16,8 +16,6 @@ Used by `afm tree` (CLI) and reused as the data source for the Tkinter
 tree widgets in the GUI.
 """
 
-from __future__ import annotations
-
 from pathlib import Path
 from typing import List
 

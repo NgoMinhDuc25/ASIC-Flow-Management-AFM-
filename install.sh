@@ -12,7 +12,8 @@
 #   chmod +x install.sh
 #   ./install.sh
 #
-set -euo pipefail
+#set -euo pipefail
+set -eo pipefail
 
 PROJECT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV_DIR="$PROJECT_DIR/.venv"

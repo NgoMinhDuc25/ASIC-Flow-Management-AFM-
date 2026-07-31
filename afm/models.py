@@ -31,8 +31,6 @@ versions:
         version_id: uuid-010
 """
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field, asdict
 from datetime import date
 from typing import List, Optional, Dict, Any

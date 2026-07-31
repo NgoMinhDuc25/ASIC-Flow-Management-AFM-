@@ -16,8 +16,6 @@ Project layout on disk (spec 2.5 / 4.1):
     `-- project_config.yaml
 """
 
-from __future__ import annotations
-
 from datetime import date
 from pathlib import Path
 from typing import List, Optional

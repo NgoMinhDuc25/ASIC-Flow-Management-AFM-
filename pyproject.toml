@@ -10,7 +10,8 @@ authors = [{ name = "ducnm153" }]
 requires-python = ">=3.6"
 dependencies = [
     "PyYAML>=5.1",
-    "PyQt5>=5.15.0"
+    "PyQt5>=5.15.0",
+    "dataclasses; python_version < '3.7'"
 ]
 
 [project.scripts]
