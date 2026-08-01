@@ -30,8 +30,8 @@ from .exceptions import (
 from .models import ProjectConfig, FolderRules, StepConfig, REQUIRED_FOLDERS
 from .yaml_io import load_yaml, dump_yaml
 
-PROJECT_CONFIG_FILENAME = "project_config.yaml"
-STEP_CONFIG_FILENAME = "step_config.yaml"
+PROJECT_CONFIG_FILENAME = ".project_config.yaml"
+STEP_CONFIG_FILENAME = ".step_config.yaml"
 LIBS_DIRNAME = "LIBS"
 
 

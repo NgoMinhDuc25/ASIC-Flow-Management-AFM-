@@ -17,7 +17,7 @@ from .exceptions import InvalidNamingRuleError, StepNotFoundError, VersionNotFou
 from .models import NamingRule, StepConfig, Version, NAMING_COMPONENTS
 from .yaml_io import load_yaml, dump_yaml
 
-STEP_CONFIG_FILENAME = "step_config.yaml"
+STEP_CONFIG_FILENAME = ".step_config.yaml"
 
 
 class StepManager:
