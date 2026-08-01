@@ -123,7 +123,12 @@ cd afm_project
 ls
 # afm/  tests/  pyproject.toml  README.md
 ```
-Cách nhanh nhất — dùng script tự động (tạo venv, cài, đăng ký alias `afm-env`):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate       # Linux/macOS
+# .venv\Scripts\activate.bat    # Windows (nếu cần)
+```
 
 ```bash
 chmod +x install.sh
