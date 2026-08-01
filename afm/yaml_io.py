@@ -1,6 +1,5 @@
 """Thin wrapper around PyYAML for consistent, human-friendly read/write."""
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import Any, Dict

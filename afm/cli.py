@@ -13,7 +13,6 @@ subcommands (init, create-version, clone-version, jump, tree, ...) so AFM
 can be driven headlessly without the GUI.
 """
 
-from __future__ import annotations
 
 import argparse
 import sys

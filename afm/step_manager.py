@@ -9,7 +9,6 @@ Also owns step_config.yaml load/save and the branch-numbering bookkeeping
 that F5 (Clone Version) relies on.
 """
 
-from __future__ import annotations
 
 from pathlib import Path
 from typing import List

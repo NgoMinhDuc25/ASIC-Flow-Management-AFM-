@@ -1,5 +1,5 @@
 """
-AFM GUI (Tkinter)
+AFM GUI (PyQt5)
 
 Implements the layout from spec section 5:
 
@@ -13,19 +13,48 @@ Implements the layout from spec section 5:
     +----------------------+------------------------------+
 
 Color scheme per NFR: dark blue + white.
+
+Rewritten from the original Tkinter implementation to PyQt5 for CentOS 7
+compatibility (system Qt5 libs are readily available via yum/dnf, whereas
+Tk on CentOS 7 can be inconsistent).
+
+Python 3.6 compatible on purpose:
+  - No `from __future__ import annotations` (that __future__ feature does
+    not exist on Python 3.6 at all -- it would raise a SyntaxError there).
+  - No PEP 604 union syntax (`str | None`) and no PEP 585 lowercase
+    generics (`list[str]`) -- both need Python 3.9+/3.10+. We use
+    `typing.Optional` / `typing.Tuple` explicitly instead.
 """
 
-from __future__ import annotations
-
-import os
 import platform
 import subprocess
-import tkinter as tk
 from pathlib import Path
-from tkinter import ttk, messagebox, simpledialog
+from typing import Optional, Tuple
+
+from PyQt5.QtCore import Qt, QUrl, QPoint
+from PyQt5.QtGui import QIcon, QDesktopServices
+from PyQt5.QtWidgets import (
+    QAction,
+    QApplication,
+    QGroupBox,
+    QHBoxLayout,
+    QInputDialog,
+    QLabel,
+    QMainWindow,
+    QMenu,
+    QMessageBox,
+    QPushButton,
+    QSplitter,
+    QStatusBar,
+    QTextEdit,
+    QTreeWidget,
+    QTreeWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 
 from ..exceptions import AFMError, ProjectNotFoundError
-from ..models import FolderRules, NAMING_COMPONENTS
+from ..models import NAMING_COMPONENTS
 from ..project_manager import ProjectManager
 from ..step_manager import StepManager
 from ..version_manager import VersionManager
@@ -40,146 +69,255 @@ FG_WHITE = "#FFFFFF"
 FG_MUTED = "#B7C6DE"
 SELECT_BG = "#2E77B5"
 
+ASSETS_DIR = Path(__file__).parent / "assets"
+
+STYLESHEET = """
+QMainWindow, QWidget {{
+    background-color: {bg_dark};
+    color: {fg_white};
+}}
+QTreeWidget {{
+    background-color: {bg_panel};
+    color: {fg_white};
+    border: none;
+    outline: 0;
+}}
+QTreeWidget::item {{
+    padding: 3px;
+}}
+QTreeWidget::item:selected {{
+    background-color: {select_bg};
+}}
+QHeaderView::section {{
+    background-color: {bg_dark};
+    color: {fg_white};
+    border: none;
+    padding: 4px;
+}}
+QTextEdit {{
+    background-color: {bg_panel};
+    color: {fg_white};
+    border: none;
+}}
+QLabel {{
+    color: {fg_white};
+}}
+QLabel[role="header"] {{
+    font-weight: bold;
+    font-size: 13px;
+}}
+QLabel[role="muted"] {{
+    color: {fg_muted};
+}}
+QGroupBox {{
+    border: 1px solid {bg_accent};
+    border-radius: 4px;
+    margin-top: 10px;
+    color: {fg_white};
+    font-weight: bold;
+}}
+QGroupBox::title {{
+    subcontrol-origin: margin;
+    left: 8px;
+    padding: 0 4px;
+}}
+QPushButton {{
+    background-color: {bg_accent};
+    color: {fg_white};
+    border: none;
+    border-radius: 3px;
+    padding: 6px 12px;
+}}
+QPushButton:hover {{
+    background-color: {select_bg};
+}}
+QMenu {{
+    background-color: {bg_panel};
+    color: {fg_white};
+}}
+QMenu::item:selected {{
+    background-color: {select_bg};
+}}
+QStatusBar {{
+    color: {fg_muted};
+}}
+""".format(
+    bg_dark=BG_DARK, bg_panel=BG_PANEL, bg_accent=BG_ACCENT,
+    fg_white=FG_WHITE, fg_muted=FG_MUTED, select_bg=SELECT_BG,
+)
+
+# Role keys stashed on QTreeWidgetItem via setData(0, Qt.UserRole, ...)
+ROOT_ROLE = "root"
+STEP_ROLE = "step"
+VERSION_ROLE = "version"
+
 
 def _open_in_file_explorer(path: Path) -> None:
-    path = str(path)
+    opened = QDesktopServices.openUrl(QUrl.fromLocalFile(str(path)))
+    if opened:
+        return
+    # Fallback for environments where Qt's desktop integration isn't wired up
     try:
         system = platform.system()
         if system == "Windows":
-            os.startfile(path)  # type: ignore[attr-defined]
+            import os
+            os.startfile(str(path))  # type: ignore[attr-defined]
         elif system == "Darwin":
-            subprocess.Popen(["open", path])
+            subprocess.Popen(["open", str(path)])
         else:
-            subprocess.Popen(["xdg-open", path])
+            subprocess.Popen(["xdg-open", str(path)])
     except Exception as e:
-        messagebox.showerror("AFM", f"Could not open file explorer:\n{e}")
+        QMessageBox.critical(None, "AFM", "Could not open file explorer:\n{}".format(e))
 
 
-class AFMApp(tk.Tk):
-    def __init__(self, project_root: Path):
-        super().__init__()
+def _load_icon() -> Optional[QIcon]:
+    sizes = (16, 32, 48, 64, 128, 256)
+    icon = QIcon()
+    found = False
+    for s in sizes:
+        p = ASSETS_DIR / "icon_{}.png".format(s)
+        if p.exists():
+            icon.addFile(str(p))
+            found = True
+    return icon if found else None
+
+
+class AFMApp(QMainWindow):
+    def __init__(self, project_root: Path) -> None:
+        super(AFMApp, self).__init__()
         self.project_root = Path(project_root)
-        self.title(f"AFM - ASIC Flow Management [{self.project_root}]")
-        self.geometry("1180x720")
-        self.configure(bg=BG_DARK)
+        self.setWindowTitle("AFM - ASIC Flow Management [{}]".format(self.project_root))
+        self.resize(1180, 720)
+        self.setStyleSheet(STYLESHEET)
 
-        self._setup_style()
+        icon = _load_icon()
+        if icon is not None:
+            self.setWindowIcon(icon)
+
+        self.selected_step: Optional[str] = None
+        self.selected_version_id: Optional[str] = None
+
         self._build_layout()
-
-        self.selected_step: str | None = None
-        self.selected_version_id: str | None = None
-
         self._try_load_project()
-
-    # ------------------------------------------------------------------ #
-    # Style
-    # ------------------------------------------------------------------ #
-    def _setup_style(self) -> None:
-        style = ttk.Style(self)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
-
-        style.configure("Treeview",
-                         background=BG_PANEL, foreground=FG_WHITE,
-                         fieldbackground=BG_PANEL, borderwidth=0, rowheight=24)
-        style.map("Treeview", background=[("selected", SELECT_BG)])
-        style.configure("Treeview.Heading",
-                         background=BG_DARK, foreground=FG_WHITE, borderwidth=0)
-
-        style.configure("TFrame", background=BG_DARK)
-        style.configure("Panel.TFrame", background=BG_PANEL)
-        style.configure("TLabel", background=BG_DARK, foreground=FG_WHITE)
-        style.configure("Panel.TLabel", background=BG_PANEL, foreground=FG_WHITE)
-        style.configure("Muted.TLabel", background=BG_PANEL, foreground=FG_MUTED)
-        style.configure("Header.TLabel", background=BG_DARK, foreground=FG_WHITE,
-                         font=("Sans", 12, "bold"))
-        style.configure("TButton", background=BG_ACCENT, foreground=FG_WHITE,
-                         borderwidth=0, focusthickness=0, padding=6)
-        style.map("TButton", background=[("active", SELECT_BG)])
 
     # ------------------------------------------------------------------ #
     # Layout
     # ------------------------------------------------------------------ #
     def _build_layout(self) -> None:
-        # Menu
-        menubar = tk.Menu(self)
-        file_menu = tk.Menu(menubar, tearoff=0)
-        file_menu.add_command(label="Create Flow (F1)...", command=self.action_create_flow)
-        file_menu.add_command(label="Edit Flow (folder/naming rules)...", command=self.action_edit_flow)
-        file_menu.add_separator()
-        file_menu.add_command(label="Quit", command=self.destroy)
-        menubar.add_cascade(label="Project", menu=file_menu)
-        self.config(menu=menubar)
+        menubar = self.menuBar()
+        project_menu = menubar.addMenu("Project")
 
-        root_pane = tk.PanedWindow(self, orient=tk.HORIZONTAL, bg=BG_DARK, sashwidth=4)
-        root_pane.pack(fill=tk.BOTH, expand=True, padx=8, pady=8)
+        act_create_flow = QAction("Create Flow (F1)...", self)
+        act_create_flow.triggered.connect(self.action_create_flow)
+        project_menu.addAction(act_create_flow)
+
+        act_edit_flow = QAction("Edit Flow (folder/naming rules)...", self)
+        act_edit_flow.triggered.connect(self.action_edit_flow)
+        project_menu.addAction(act_edit_flow)
+
+        project_menu.addSeparator()
+
+        act_quit = QAction("Quit", self)
+        act_quit.triggered.connect(self.close)
+        project_menu.addAction(act_quit)
+
+        central = QWidget(self)
+        self.setCentralWidget(central)
+        root_layout = QVBoxLayout(central)
+
+        splitter = QSplitter(Qt.Horizontal)
+        root_layout.addWidget(splitter)
 
         # ---------------- LEFT: Flow Tree + Step Tree ----------------
-        left = ttk.Frame(root_pane, style="TFrame")
-        root_pane.add(left, minsize=320)
+        left = QWidget()
+        left_layout = QVBoxLayout(left)
 
-        ttk.Label(left, text="Flow Tree", style="Header.TLabel").pack(anchor="w", pady=(0, 4))
-        self.flow_tree = ttk.Treeview(left, show="tree", height=10)
-        self.flow_tree.pack(fill=tk.BOTH, expand=True)
-        self.flow_tree.bind("<<TreeviewSelect>>", self.on_flow_select)
-        self.flow_tree.bind("<Double-Button-1>", self.on_flow_double_click)
+        flow_label = QLabel("Flow Tree")
+        flow_label.setProperty("role", "header")
+        left_layout.addWidget(flow_label)
 
-        ttk.Label(left, text="Step Tree", style="Header.TLabel").pack(anchor="w", pady=(10, 4))
-        self.step_tree = ttk.Treeview(left, show="tree", height=16)
-        self.step_tree.pack(fill=tk.BOTH, expand=True)
-        self.step_tree.bind("<<TreeviewSelect>>", self.on_step_select)
-        self.step_tree.bind("<Double-Button-1>", self.on_step_double_click)
-        self.step_tree.bind("<Button-3>", self.on_step_right_click)
+        self.flow_tree = QTreeWidget()
+        self.flow_tree.setHeaderHidden(True)
+        self.flow_tree.itemSelectionChanged.connect(self.on_flow_select)
+        self.flow_tree.itemDoubleClicked.connect(self.on_flow_double_click)
+        left_layout.addWidget(self.flow_tree, 2)
 
-        self.step_context_menu = tk.Menu(self, tearoff=0)
-        self.step_context_menu.add_command(label="Open folder", command=self._context_open_folder)
-        self.step_context_menu.add_command(label="Clone Version", command=self.action_clone_version)
-        self.step_context_menu.add_command(label="Jump Step...", command=self.action_jump_step)
-        self.step_context_menu.add_separator()
-        self.step_context_menu.add_command(label="Delete Version", command=self.action_delete_version)
+        step_label = QLabel("Step Tree")
+        step_label.setProperty("role", "header")
+        left_layout.addWidget(step_label)
+
+        self.step_tree = QTreeWidget()
+        self.step_tree.setHeaderHidden(True)
+        self.step_tree.itemSelectionChanged.connect(self.on_step_select)
+        self.step_tree.itemDoubleClicked.connect(self.on_step_double_click)
+        self.step_tree.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.step_tree.customContextMenuRequested.connect(self.on_step_right_click)
+        left_layout.addWidget(self.step_tree, 3)
+
+        splitter.addWidget(left)
 
         # ---------------- RIGHT: Detail + Actions ----------------
-        right = ttk.Frame(root_pane, style="TFrame")
-        root_pane.add(right, minsize=420)
+        right = QWidget()
+        right_layout = QVBoxLayout(right)
 
-        ttk.Label(right, text="Detail View", style="Header.TLabel").pack(anchor="w", pady=(0, 4))
-        detail_panel = ttk.Frame(right, style="Panel.TFrame")
-        detail_panel.pack(fill=tk.BOTH, expand=True)
+        detail_label = QLabel("Detail View")
+        detail_label.setProperty("role", "header")
+        right_layout.addWidget(detail_label)
 
-        self.detail_text = tk.Text(detail_panel, bg=BG_PANEL, fg=FG_WHITE,
-                                    insertbackground=FG_WHITE, borderwidth=0,
-                                    height=14, wrap="word")
-        self.detail_text.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
-        self.detail_text.configure(state="disabled")
+        self.detail_text = QTextEdit()
+        self.detail_text.setReadOnly(True)
+        right_layout.addWidget(self.detail_text, 3)
 
-        ttk.Label(right, text="Actions", style="Header.TLabel").pack(anchor="w", pady=(10, 4))
-        actions = ttk.Frame(right, style="TFrame")
-        actions.pack(fill=tk.X)
+        actions_label = QLabel("Actions")
+        actions_label.setProperty("role", "header")
+        right_layout.addWidget(actions_label)
 
-        version_frame = ttk.LabelFrame(actions, text="Version Actions")
-        version_frame.pack(fill=tk.X, pady=4)
-        ttk.Button(version_frame, text="Create Version", command=self.action_create_version).pack(side=tk.LEFT, padx=4, pady=4)
-        ttk.Button(version_frame, text="Clone Version", command=self.action_clone_version).pack(side=tk.LEFT, padx=4, pady=4)
-        ttk.Button(version_frame, text="Delete Version", command=self.action_delete_version).pack(side=tk.LEFT, padx=4, pady=4)
+        version_box = QGroupBox("Version Actions")
+        version_layout = QHBoxLayout(version_box)
+        btn_create_version = QPushButton("Create Version")
+        btn_create_version.clicked.connect(self.action_create_version)
+        btn_clone_version = QPushButton("Clone Version")
+        btn_clone_version.clicked.connect(self.action_clone_version)
+        btn_delete_version = QPushButton("Delete Version")
+        btn_delete_version.clicked.connect(self.action_delete_version)
+        version_layout.addWidget(btn_create_version)
+        version_layout.addWidget(btn_clone_version)
+        version_layout.addWidget(btn_delete_version)
+        right_layout.addWidget(version_box)
 
-        step_frame = ttk.LabelFrame(actions, text="Step Actions")
-        step_frame.pack(fill=tk.X, pady=4)
-        ttk.Button(step_frame, text="Set Naming Rule", command=self.action_set_naming_rule).pack(side=tk.LEFT, padx=4, pady=4)
-        ttk.Button(step_frame, text="Set Folder Rule", command=self.action_set_folder_rule).pack(side=tk.LEFT, padx=4, pady=4)
+        step_box = QGroupBox("Step Actions")
+        step_layout = QHBoxLayout(step_box)
+        btn_naming_rule = QPushButton("Set Naming Rule")
+        btn_naming_rule.clicked.connect(self.action_set_naming_rule)
+        btn_folder_rule = QPushButton("Set Folder Rule")
+        btn_folder_rule.clicked.connect(self.action_set_folder_rule)
+        step_layout.addWidget(btn_naming_rule)
+        step_layout.addWidget(btn_folder_rule)
+        right_layout.addWidget(step_box)
 
-        flow_frame = ttk.LabelFrame(actions, text="Flow Actions")
-        flow_frame.pack(fill=tk.X, pady=4)
-        ttk.Button(flow_frame, text="Create Flow", command=self.action_create_flow).pack(side=tk.LEFT, padx=4, pady=4)
-        ttk.Button(flow_frame, text="Edit Flow", command=self.action_edit_flow).pack(side=tk.LEFT, padx=4, pady=4)
+        flow_box = QGroupBox("Flow Actions")
+        flow_layout = QHBoxLayout(flow_box)
+        btn_create_flow = QPushButton("Create Flow")
+        btn_create_flow.clicked.connect(self.action_create_flow)
+        btn_edit_flow = QPushButton("Edit Flow")
+        btn_edit_flow.clicked.connect(self.action_edit_flow)
+        flow_layout.addWidget(btn_create_flow)
+        flow_layout.addWidget(btn_edit_flow)
+        right_layout.addWidget(flow_box)
 
-        nav_frame = ttk.LabelFrame(actions, text="Navigation Actions")
-        nav_frame.pack(fill=tk.X, pady=4)
-        ttk.Button(nav_frame, text="Jump Step", command=self.action_jump_step).pack(side=tk.LEFT, padx=4, pady=4)
+        nav_box = QGroupBox("Navigation Actions")
+        nav_layout = QHBoxLayout(nav_box)
+        btn_jump = QPushButton("Jump Step")
+        btn_jump.clicked.connect(self.action_jump_step)
+        nav_layout.addWidget(btn_jump)
+        right_layout.addWidget(nav_box)
 
-        self.status = ttk.Label(self, text="", style="Muted.TLabel" if False else "TLabel", anchor="w")
-        self.status.pack(fill=tk.X, side=tk.BOTTOM, padx=8, pady=(0, 6))
+        right_layout.addStretch(1)
+        splitter.addWidget(right)
+        splitter.setSizes([380, 800])
+
+        self.status_bar = QStatusBar()
+        self.setStatusBar(self.status_bar)
 
     # ------------------------------------------------------------------ #
     # Project loading / tree refresh
@@ -192,27 +330,35 @@ class AFMApp(tk.Tk):
         self.refresh_flow_tree()
 
     def _set_status(self, msg: str) -> None:
-        self.status.configure(text=msg)
+        self.status_bar.showMessage(msg)
 
     def refresh_flow_tree(self) -> None:
-        self.flow_tree.delete(*self.flow_tree.get_children())
+        self.flow_tree.clear()
         pm = ProjectManager(self.project_root)
         try:
             config = pm.load()
         except ProjectNotFoundError:
             return
-        root_node = self.flow_tree.insert("", "end", text=config.project_name, open=True, iid="__root__")
+
+        root_item = QTreeWidgetItem([config.project_name])
+        root_item.setData(0, Qt.UserRole, (ROOT_ROLE,))
+        self.flow_tree.addTopLevelItem(root_item)
+
         for step in config.step_order:
-            self.flow_tree.insert(root_node, "end", text=step, iid=f"step::{step}")
-        self._set_status(f"Project '{config.project_name}' — {len(config.step_order)} step(s).")
+            step_item = QTreeWidgetItem([step])
+            step_item.setData(0, Qt.UserRole, (STEP_ROLE, step))
+            root_item.addChild(step_item)
+
+        root_item.setExpanded(True)
+        self._set_status("Project '{}' - {} step(s).".format(config.project_name, len(config.step_order)))
 
     def refresh_step_tree(self, step_name: str) -> None:
-        self.step_tree.delete(*self.step_tree.get_children())
+        self.step_tree.clear()
         sm = StepManager(self.project_root, step_name)
         try:
             config = sm.load()
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
 
         by_parent = {}
@@ -223,85 +369,93 @@ class AFMApp(tk.Tk):
             else:
                 roots.append(v)
 
-        def insert_node(parent_iid, version):
+        def insert_node(parent_item, version):
             label = version.name + ("  (jump)" if version.jump_from else "")
-            iid = f"ver::{version.id}"
-            node = self.step_tree.insert(parent_iid, "end", text=label, iid=iid, open=True)
+            item = QTreeWidgetItem([label])
+            item.setData(0, Qt.UserRole, (VERSION_ROLE, version.id))
+            if parent_item is None:
+                self.step_tree.addTopLevelItem(item)
+            else:
+                parent_item.addChild(item)
+            item.setExpanded(True)
             for child in by_parent.get(version.id, []):
-                insert_node(node, child)
+                insert_node(item, child)
 
         for v in roots:
-            insert_node("", v)
+            insert_node(None, v)
 
         self.selected_step = step_name
 
     # ------------------------------------------------------------------ #
     # Event handlers
     # ------------------------------------------------------------------ #
-    def on_flow_select(self, event=None) -> None:
-        sel = self.flow_tree.selection()
-        if not sel:
+    def on_flow_select(self) -> None:
+        items = self.flow_tree.selectedItems()
+        if not items:
             return
-        iid = sel[0]
-        if iid.startswith("step::"):
-            step_name = iid.split("::", 1)[1]
+        role = items[0].data(0, Qt.UserRole)
+        if role and role[0] == STEP_ROLE:
+            step_name = role[1]
             self.refresh_step_tree(step_name)
             self._show_step_detail(step_name)
 
-    def on_flow_double_click(self, event=None) -> None:
-        sel = self.flow_tree.selection()
-        if not sel:
+    def on_flow_double_click(self, item: QTreeWidgetItem, column: int) -> None:
+        role = item.data(0, Qt.UserRole)
+        if not role:
             return
-        iid = sel[0]
-        if iid.startswith("step::"):
-            step_name = iid.split("::", 1)[1]
-            _open_in_file_explorer(self.project_root / step_name)
-        elif iid == "__root__":
+        if role[0] == STEP_ROLE:
+            _open_in_file_explorer(self.project_root / role[1])
+        elif role[0] == ROOT_ROLE:
             _open_in_file_explorer(self.project_root)
 
-    def on_step_select(self, event=None) -> None:
-        sel = self.step_tree.selection()
-        if not sel or not self.selected_step:
+    def on_step_select(self) -> None:
+        items = self.step_tree.selectedItems()
+        if not items or not self.selected_step:
             return
-        iid = sel[0]
-        if iid.startswith("ver::"):
-            version_id = iid.split("::", 1)[1]
-            self.selected_version_id = version_id
-            self._show_version_detail(self.selected_step, version_id)
+        role = items[0].data(0, Qt.UserRole)
+        if role and role[0] == VERSION_ROLE:
+            self.selected_version_id = role[1]
+            self._show_version_detail(self.selected_step, role[1])
 
-    def on_step_double_click(self, event=None) -> None:
-        sel = self.step_tree.selection()
-        if not sel or not self.selected_step:
+    def on_step_double_click(self, item: QTreeWidgetItem, column: int) -> None:
+        if not self.selected_step:
             return
-        iid = sel[0]
-        if iid.startswith("ver::"):
-            version_id = iid.split("::", 1)[1]
-            sm = StepManager(self.project_root, self.selected_step)
-            try:
-                version = sm.get_version(version_id)
-            except AFMError as e:
-                messagebox.showerror("AFM", str(e))
-                return
-            _open_in_file_explorer(sm.version_path(version.name))
+        role = item.data(0, Qt.UserRole)
+        if not role or role[0] != VERSION_ROLE:
+            return
+        sm = StepManager(self.project_root, self.selected_step)
+        try:
+            version = sm.get_version(role[1])
+        except AFMError as e:
+            QMessageBox.critical(self, "AFM", str(e))
+            return
+        _open_in_file_explorer(sm.version_path(version.name))
 
-    def on_step_right_click(self, event) -> None:
-        iid = self.step_tree.identify_row(event.y)
-        if iid:
-            self.step_tree.selection_set(iid)
-            self.on_step_select()
-            self.step_context_menu.tk_popup(event.x_root, event.y_root)
+    def on_step_right_click(self, point: QPoint) -> None:
+        item = self.step_tree.itemAt(point)
+        if not item:
+            return
+        self.step_tree.setCurrentItem(item)
+        self.on_step_select()
 
-    def _context_open_folder(self) -> None:
-        self.on_step_double_click()
+        menu = QMenu(self)
+        menu.addAction("Open folder", self.on_step_double_click_current)
+        menu.addAction("Clone Version", self.action_clone_version)
+        menu.addAction("Jump Step...", self.action_jump_step)
+        menu.addSeparator()
+        menu.addAction("Delete Version", self.action_delete_version)
+        menu.exec_(self.step_tree.viewport().mapToGlobal(point))
+
+    def on_step_double_click_current(self) -> None:
+        item = self.step_tree.currentItem()
+        if item:
+            self.on_step_double_click(item, 0)
 
     # ------------------------------------------------------------------ #
     # Detail panel
     # ------------------------------------------------------------------ #
     def _write_detail(self, text: str) -> None:
-        self.detail_text.configure(state="normal")
-        self.detail_text.delete("1.0", tk.END)
-        self.detail_text.insert(tk.END, text)
-        self.detail_text.configure(state="disabled")
+        self.detail_text.setPlainText(text)
 
     def _show_step_detail(self, step_name: str) -> None:
         sm = StepManager(self.project_root, step_name)
@@ -310,14 +464,14 @@ class AFMApp(tk.Tk):
         except AFMError as e:
             self._write_detail(str(e))
             return
-        lines = [f"Step: {config.step_name}", f"Created: {config.created_at}", ""]
+        lines = ["Step: {}".format(config.step_name), "Created: {}".format(config.created_at), ""]
         lines.append("Naming rule:")
-        lines.append(f"  components: {config.version_name_rule.components}")
-        lines.append(f"  order:      {config.version_name_rule.order}")
+        lines.append("  components: {}".format(config.version_name_rule.components))
+        lines.append("  order:      {}".format(config.version_name_rule.order))
         lines.append("")
-        lines.append(f"Versions ({len(config.versions)}):")
+        lines.append("Versions ({}):".format(len(config.versions)))
         for v in config.versions:
-            lines.append(f"  - {v.name}  [id={v.id[:8]}...]")
+            lines.append("  - {}  [id={}...]".format(v.name, v.id[:8]))
         self._write_detail("\n".join(lines))
 
     def _show_version_detail(self, step_name: str, version_id: str) -> None:
@@ -329,26 +483,26 @@ class AFMApp(tk.Tk):
             return
 
         lines = [
-            f"Version: {v.name}",
-            f"id:      {v.id}",
-            f"parent:  {v.parent or '(none)'}",
-            f"branches: {len(v.branches)}",
+            "Version: {}".format(v.name),
+            "id:      {}".format(v.id),
+            "parent:  {}".format(v.parent or "(none)"),
+            "branches: {}".format(len(v.branches)),
         ]
         if v.jump_from:
-            lines.append(f"jump_from: step={v.jump_from.step}, version_id={v.jump_from.version_id}")
+            lines.append("jump_from: step={}, version_id={}".format(v.jump_from.step, v.jump_from.version_id))
         if v.jump_to:
             lines.append("jump_to:")
             for j in v.jump_to:
-                lines.append(f"  -> step={j.step}, version_id={j.version_id}")
+                lines.append("  -> step={}, version_id={}".format(j.step, j.version_id))
 
         version_dir = sm.version_path(v.name)
         lines.append("")
-        lines.append(f"Folder: {version_dir}")
+        lines.append("Folder: {}".format(version_dir))
         if version_dir.exists():
             lines.append("Folder structure:")
             for child in sorted(version_dir.iterdir()):
                 marker = "d" if child.is_dir() else "f"
-                lines.append(f"  [{marker}] {child.name}")
+                lines.append("  [{}] {}".format(marker, child.name))
         else:
             lines.append("(folder missing on disk)")
 
@@ -360,28 +514,30 @@ class AFMApp(tk.Tk):
     def action_create_flow(self) -> None:
         pm = ProjectManager(self.project_root)
         if pm.exists():
-            if not messagebox.askyesno("AFM", "A project already exists here. Re-run init anyway?"):
+            reply = QMessageBox.question(
+                self, "AFM", "A project already exists here. Re-run init anyway?",
+                QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+            if reply != QMessageBox.Yes:
                 return
 
-        name = simpledialog.askstring("Create Flow", "Project name:", parent=self,
-                                       initialvalue=self.project_root.name)
-        if not name:
+        name, ok = QInputDialog.getText(self, "Create Flow", "Project name:", text=self.project_root.name)
+        if not ok or not name:
             return
-        steps_str = simpledialog.askstring(
-            "Create Flow", "Steps (comma-separated):", parent=self,
-            initialvalue="Import,Floorplan,Placement,CTS,PostCTS,Routing,STA,Signoff")
-        if not steps_str:
+        steps_str, ok = QInputDialog.getText(
+            self, "Create Flow", "Steps (comma-separated):",
+            text="Import,Floorplan,Placement,CTS,PostCTS,Routing,STA,Signoff")
+        if not ok or not steps_str:
             return
         steps = [s.strip() for s in steps_str.split(",") if s.strip()]
 
         try:
             pm.init_project(project_name=name, step_order=steps, exist_ok=True)
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
 
         self.refresh_flow_tree()
-        self._set_status(f"Flow '{name}' created with steps: {', '.join(steps)}")
+        self._set_status("Flow '{}' created with steps: {}".format(name, ", ".join(steps)))
 
     def action_edit_flow(self) -> None:
         self.action_set_folder_rule()
@@ -393,47 +549,48 @@ class AFMApp(tk.Tk):
         step = self._require_selected_step()
         if not step:
             return
-        components_str = simpledialog.askstring(
-            "Set Naming Rule",
-            f"Enabled components for '{step}' (subset of {list(NAMING_COMPONENTS)}, comma-separated, 1-3):",
-            parent=self, initialvalue="date,name,version")
-        if not components_str:
+        components_str, ok = QInputDialog.getText(
+            self, "Set Naming Rule",
+            "Enabled components for '{}' (subset of {}, comma-separated, 1-3):".format(
+                step, list(NAMING_COMPONENTS)),
+            text="date,name,version")
+        if not ok or not components_str:
             return
         components = [c.strip() for c in components_str.split(",") if c.strip()]
-        order_str = simpledialog.askstring(
-            "Set Naming Rule", "Display order (comma-separated, same set as above):",
-            parent=self, initialvalue=",".join(components))
-        order = [c.strip() for c in order_str.split(",")] if order_str else components
+        order_str, ok = QInputDialog.getText(
+            self, "Set Naming Rule", "Display order (comma-separated, same set as above):",
+            text=",".join(components))
+        order = [c.strip() for c in order_str.split(",")] if ok and order_str else components
 
         sm = StepManager(self.project_root, step)
         try:
             sm.set_naming_rule(components, order)
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
         self._show_step_detail(step)
-        self._set_status(f"Naming rule updated for '{step}'.")
+        self._set_status("Naming rule updated for '{}'.".format(step))
 
     def action_set_folder_rule(self) -> None:
         pm = ProjectManager(self.project_root)
         try:
             config = pm.load()
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
 
-        optional_str = simpledialog.askstring(
-            "Set Folder Rule",
+        optional_str, ok = QInputDialog.getText(
+            self, "Set Folder Rule",
             "Optional folders (comma-separated). 'data' and 'outputs' are always required:",
-            parent=self, initialvalue=",".join(config.folder_rules.optional))
-        if optional_str is None:
+            text=",".join(config.folder_rules.optional))
+        if not ok:
             return
         optional = [f.strip() for f in optional_str.split(",") if f.strip()]
 
         try:
             pm.set_folder_rules(required=config.folder_rules.required, optional=optional)
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
         self._set_status("Folder rule updated.")
 
@@ -444,18 +601,18 @@ class AFMApp(tk.Tk):
         step = self._require_selected_step()
         if not step:
             return
-        name = simpledialog.askstring("Create Version", "Name component (e.g. 'cts'):", parent=self)
-        if not name:
+        name, ok = QInputDialog.getText(self, "Create Version", "Name component (e.g. 'cts'):")
+        if not ok or not name:
             return
         vm = VersionManager(self.project_root)
         try:
             v = vm.create_version(step, name)
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
         self.refresh_step_tree(step)
         self._show_version_detail(step, v.id)
-        self._set_status(f"Created version '{v.name}'.")
+        self._set_status("Created version '{}'.".format(v.name))
 
     def action_clone_version(self) -> None:
         step, version_id = self._require_selected_version()
@@ -465,11 +622,11 @@ class AFMApp(tk.Tk):
         try:
             v = vm.clone_version(step, version_id)
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
         self.refresh_step_tree(step)
         self._show_version_detail(step, v.id)
-        self._set_status(f"Cloned into '{v.name}'.")
+        self._set_status("Cloned into '{}'.".format(v.name))
 
     def action_delete_version(self) -> None:
         step, version_id = self._require_selected_version()
@@ -477,17 +634,21 @@ class AFMApp(tk.Tk):
             return
         sm = StepManager(self.project_root, step)
         version = sm.get_version(version_id)
-        if not messagebox.askyesno("AFM", f"Delete version '{version.name}' and its folder? This cannot be undone."):
+        reply = QMessageBox.question(
+            self, "AFM",
+            "Delete version '{}' and its folder? This cannot be undone.".format(version.name),
+            QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+        if reply != QMessageBox.Yes:
             return
         vm = VersionManager(self.project_root)
         try:
             vm.delete_version(step, version_id)
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
         self.refresh_step_tree(step)
         self._write_detail("")
-        self._set_status(f"Deleted version '{version.name}'.")
+        self._set_status("Deleted version '{}'.".format(version.name))
 
     def action_jump_step(self) -> None:
         from_step, version_id = self._require_selected_version()
@@ -496,41 +657,44 @@ class AFMApp(tk.Tk):
         pm = ProjectManager(self.project_root)
         config = pm.load()
         candidates = [s for s in config.step_order if s != from_step]
-        to_step = simpledialog.askstring(
-            "Jump Step", f"Target step (one of: {', '.join(candidates)}):", parent=self)
-        if not to_step or to_step not in candidates:
-            if to_step is not None:
-                messagebox.showerror("AFM", f"'{to_step}' is not a valid target step.")
+        to_step, ok = QInputDialog.getItem(
+            self, "Jump Step", "Target step:", candidates, 0, False)
+        if not ok or not to_step:
             return
 
         vm = VersionManager(self.project_root)
         try:
             v = vm.jump_step(from_step, version_id, to_step)
         except AFMError as e:
-            messagebox.showerror("AFM", str(e))
+            QMessageBox.critical(self, "AFM", str(e))
             return
-        self._set_status(f"Jumped: created '{v.name}' in step '{to_step}'.")
-        # refresh whichever step tree is currently shown
+        self._set_status("Jumped: created '{}' in step '{}'.".format(v.name, to_step))
         if self.selected_step == to_step:
             self.refresh_step_tree(to_step)
-        messagebox.showinfo("AFM", f"Created '{v.name}' in step '{to_step}'.")
+        QMessageBox.information(self, "AFM", "Created '{}' in step '{}'.".format(v.name, to_step))
 
     # ------------------------------------------------------------------ #
     # Helpers
     # ------------------------------------------------------------------ #
-    def _require_selected_step(self) -> str | None:
+    def _require_selected_step(self) -> Optional[str]:
         if not self.selected_step:
-            messagebox.showwarning("AFM", "Select a step first (click a step in the Flow Tree).")
+            QMessageBox.warning(self, "AFM", "Select a step first (click a step in the Flow Tree).")
             return None
         return self.selected_step
 
-    def _require_selected_version(self):
+    def _require_selected_version(self) -> Tuple[Optional[str], Optional[str]]:
         if not self.selected_step or not self.selected_version_id:
-            messagebox.showwarning("AFM", "Select a version first (click a node in the Step Tree).")
+            QMessageBox.warning(self, "AFM", "Select a version first (click a node in the Step Tree).")
             return None, None
         return self.selected_step, self.selected_version_id
 
 
 def launch_gui(project_root: Path) -> None:
-    app = AFMApp(project_root)
-    app.mainloop()
+    app = QApplication.instance()
+    owns_app = app is None
+    if owns_app:
+        app = QApplication([])
+    window = AFMApp(project_root)
+    window.show()
+    if owns_app:
+        app.exec_()

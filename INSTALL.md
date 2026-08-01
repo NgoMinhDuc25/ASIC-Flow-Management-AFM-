@@ -73,10 +73,12 @@ ls
 
 ---
 
-## 4. Tạo virtual environment (khuyến nghị)
+## 4. Virtual environment
 
-Không bắt buộc, nhưng nên dùng để tránh xung đột package hệ thống (đặc biệt trên CentOS 7 /
-Rocky Linux là các distro dùng Python hệ thống cho nhiều tool khác):
+Từ đây trở đi, `install.sh` (mục 5.1) sẽ **tự động tạo và cài vào venv giúp bạn** — bạn có
+thể bỏ qua bước này và nhảy thẳng xuống mục 5.1.
+
+Chỉ cần tự tạo venv thủ công nếu bạn muốn kiểm soát từng bước (mục 5.2):
 
 ```bash
 python3 -m venv .venv
@@ -84,34 +86,70 @@ source .venv/bin/activate       # Linux/macOS
 # .venv\Scripts\activate.bat    # Windows (nếu cần)
 ```
 
-Khi dùng venv, Tkinter vẫn kế thừa từ Python hệ thống — không cần cài lại, miễn là bước 2
-đã cài `python3-tkinter`/`python3-tk` trước khi tạo venv.
+Dùng venv để tránh xung đột package hệ thống (đặc biệt trên CentOS 7 / Rocky Linux là các
+distro dùng Python hệ thống cho nhiều tool khác). Tkinter vẫn kế thừa từ Python hệ thống khi
+dùng venv — không cần cài lại, miễn là bước 2 đã cài `python3-tkinter`/`python3-tk` trước khi
+tạo venv.
 
 ---
 
 ## 5. Cài đặt AFM
 
+### 5.1 Cách khuyến nghị — script `install.sh` (tự tạo venv + cài + đăng ký alias)
+
 Từ thư mục gốc `afm_project/` (nơi có `pyproject.toml`):
 
 ```bash
+chmod +x install.sh
+./install.sh
+```
+
+Script này tự động làm toàn bộ:
+1. Tạo virtual environment tại `afm_project/.venv` (nếu chưa có, bỏ qua nếu đã tồn tại)
+2. `pip install --upgrade pip && pip install -e .` bên trong venv đó (tự cài `PyYAML`,
+   đăng ký lệnh `afm` — entry point `afm.cli:main`)
+3. **Đăng ký alias `afm-env` vào `~/.bashrc` (và `~/.zshrc` nếu bạn dùng zsh)**, alias này
+   trỏ đúng tới `source afm_project/.venv/bin/activate`
+
+Sau khi chạy xong, mở **terminal mới** (hoặc `source ~/.bashrc`), từ **bất kỳ thư mục nào**
+bạn chỉ cần gõ:
+
+```bash
+afm-env
+```
+
+để kích hoạt venv của AFM, không cần nhớ đường dẫn `.venv` hay gõ lại lệnh `source` dài dòng.
+Chạy lại `install.sh` ở lần sau (ví dụ project bị di chuyển sang thư mục khác) sẽ tự thay
+thế alias cũ bằng alias mới, không bị trùng dòng trong `~/.bashrc`.
+
+> Script dùng `python3 -m venv`, nên máy bạn cần có sẵn module `venv` của Python
+> (mặc định có sẵn trên CentOS 7 / Rocky Linux cùng gói `python3`).
+
+### 5.2 Cách thủ công (không dùng script)
+
+Nếu muốn tự kiểm soát từng bước thay vì chạy `install.sh`:
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install --upgrade pip
 pip install -e .
 ```
 
-Lệnh trên sẽ:
-- Tự động cài `PyYAML` (dependency duy nhất, khai báo trong `pyproject.toml`)
-- Đăng ký lệnh `afm` vào PATH (entry point `afm.cli:main`)
+Sau đó tự thêm alias vào `~/.bashrc` nếu muốn (xem mục 5.1 để biết alias trông như thế nào),
+hoặc mỗi lần dùng lại `source .venv/bin/activate` theo đường dẫn thật.
 
 > Nếu môi trường của bạn chặn cài package vào Python hệ thống (lỗi
-> `externally-managed-environment`), thêm cờ:
+> `externally-managed-environment`) và bạn **không** dùng venv, thêm cờ:
 > ```bash
 > pip install --break-system-packages -e .
 > ```
-> hoặc dùng virtual environment ở bước 4 (khuyến nghị hơn).
+> Cách này không khuyến nghị bằng venv vì có thể xung đột package hệ thống.
 
-### Kiểm tra cài đặt thành công
+### 5.3 Kiểm tra cài đặt thành công
 
 ```bash
+afm-env        # nếu dùng install.sh — kích hoạt venv từ bất kỳ đâu
 afm --help
 ```
 
@@ -127,6 +165,9 @@ python3 -m afm.cli --help
 ---
 
 ## 6. Khởi chạy ứng dụng
+
+> Nếu dùng `install.sh` ở mục 5.1, nhớ kích hoạt venv trước bằng `afm-env` (ở bất kỳ terminal
+> mới nào) trước khi chạy các lệnh `afm` bên dưới.
 
 ### 6.1 Khởi tạo project mới (F1) rồi mở GUI — đúng flow trong spec
 
@@ -195,7 +236,9 @@ Kết quả mong đợi: 7 test pass, bao phủ toàn bộ F1–F6.
 |---|---|---|
 | `ModuleNotFoundError: No module named 'tkinter'` | Chưa cài `python3-tkinter` | Cài lại theo mục 2 tương ứng distro |
 | `externally-managed-environment` khi `pip install` | Python hệ thống chặn cài package trực tiếp (PEP 668) | Dùng venv (mục 4) hoặc thêm `--break-system-packages` |
-| `afm: command not found` sau khi cài | PATH chưa trỏ tới thư mục `bin` của venv/pip user | `source .venv/bin/activate` lại, hoặc dùng `python3 -m afm.cli ...` |
+| `afm: command not found` sau khi cài | PATH chưa trỏ tới thư mục `bin` của venv/pip user | Gõ `afm-env` (nếu đã chạy `install.sh`) hoặc `source .venv/bin/activate` lại, hoặc dùng `python3 -m afm.cli ...` |
+| `afm-env: command not found` ở terminal mới | Chưa `source ~/.bashrc` sau khi chạy `install.sh`, hoặc đang dùng shell khác (fish, csh...) | Mở terminal mới hẳn, hoặc chạy `source ~/.bashrc` (`source ~/.zshrc` nếu dùng zsh) |
+| Alias `afm-env` trỏ sai venv sau khi di chuyển project | Alias cũ trong `~/.bashrc` còn trỏ đường dẫn cũ | Chạy lại `./install.sh` từ vị trí project mới — script tự xóa alias cũ và đăng ký lại alias đúng, không tạo dòng trùng |
 | GUI mở lên nhưng không có tree nào | Thư mục hiện tại chưa được `afm -init` / chưa `Create Flow` | Vào menu **Project > Create Flow** hoặc chạy `afm init` trước |
 | `[AFM][ERROR] ... project_config.yaml` | Đang chạy lệnh không đúng thư mục project | Kiểm tra `--path` hoặc `cd` đúng vào project_root |
 | Chạy trên máy chỉ có SSH, không có màn hình (headless) | GUI cần môi trường đồ họa (X11/Wayland) | Dùng các subcommand CLI ở mục 6.4, hoặc SSH với `-X` (X11 forwarding) nếu vẫn cần GUI |
