@@ -1,0 +1,24 @@
+[build-system]
+requires = ["setuptools>=59.6.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "afm"
+version = "0.2.2"
+description = "ASIC Flow Management (AFM) - lightweight folder/version control system for ASIC Physical Design flows"
+authors = [{ name = "ducnm153" }]
+requires-python = ">=3.6"
+dependencies = [
+    "PyYAML>=5.1",
+    "PyQt5>=5.15.0",
+    "dataclasses; python_version < '3.7'"
+]
+
+[project.scripts]
+afm = "afm.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["afm*"]
+
+[tool.setuptools.package-data]
+afm = ["gui/assets/*.png", "gui/assets/*.ico"]

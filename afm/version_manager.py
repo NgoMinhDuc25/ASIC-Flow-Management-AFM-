@@ -1,0 +1,241 @@
+"""
+VersionManager
+==============
+
+Implements:
+    F4 - Create Version   (generate name, assign UUID, create folder structure)
+    F5 - Clone Version    (copy folder, new id, _bXX postfix, track parent/branches)
+    F6 - Jump Step        (new version in next step, copy outputs->data, _j_<from> postfix,
+                            track jump_from / jump_to)
+
+This module orchestrates ProjectManager + StepManager and touches the
+filesystem (folder creation / copying).
+"""
+
+
+import shutil
+import uuid
+from datetime import date
+from pathlib import Path
+from typing import Dict, Optional
+
+from .exceptions import VersionAlreadyExistsError, VersionNotFoundError, StepNotFoundError
+from .models import JumpRef, Version
+from .naming import generate_base_name, with_clone_postfix, with_jump_postfix
+from .project_manager import ProjectManager
+from .step_manager import StepManager
+
+
+class VersionManager:
+    def __init__(self, project_root: Path):
+        self.project_root = Path(project_root)
+        self.project_mgr = ProjectManager(self.project_root)
+
+    def _step_mgr(self, step_name: str) -> StepManager:
+        return StepManager(self.project_root, step_name)
+
+    # ------------------------------------------------------------------ #
+    # Shared: create the F3 folder skeleton inside a version directory
+    # ------------------------------------------------------------------ #
+    def _create_version_skeleton(self, version_dir: Path) -> None:
+        project_config = self.project_mgr.load()
+        version_dir.mkdir(parents=True, exist_ok=False)
+        for folder in project_config.folder_rules.all_folders():
+            (version_dir / folder).mkdir(parents=True, exist_ok=True)
+
+    # ------------------------------------------------------------------ #
+    # F4 - Create Version
+    # ------------------------------------------------------------------ #
+    def create_version(
+        self,
+        step_name: str,
+        name: str,
+        when: Optional[date] = None,
+        overrides: Optional[Dict[str, str]] = None,
+    ) -> Version:
+        """
+        Create a brand-new (root) version inside `step_name`.
+
+        `name` is the user-supplied "name" naming component (e.g. "cts").
+        `overrides` can force explicit strings for 'date' / 'version' too.
+        """
+        step_mgr = self._step_mgr(step_name)
+        step_config = step_mgr.load()
+
+        version_index = step_mgr.next_version_index()
+        base_name = generate_base_name(
+            step_config.version_name_rule,
+            name=name,
+            version_index=version_index,
+            when=when,
+            overrides=overrides,
+        )
+
+        version_dir = step_mgr.version_path(base_name)
+        if version_dir.exists():
+            raise VersionAlreadyExistsError(
+                f"Version folder '{base_name}' already exists under step '{step_name}'."
+            )
+
+        self._create_version_skeleton(version_dir)
+
+        version = Version(
+            id=str(uuid.uuid4()),
+            name=base_name,
+            parent=None,
+            branches=[],
+            jump_from=None,
+            jump_to=[],
+            created_at=str(date.today()),
+        )
+        step_mgr.register_version(version)
+        return version
+
+    # ------------------------------------------------------------------ #
+    # F5 - Clone Version
+    # ------------------------------------------------------------------ #
+    def clone_version(self, step_name: str, source_version_id: str) -> Version:
+        """
+        Clone `source_version_id` within the same step.
+        Copies the ENTIRE folder (scripts/logs/data/outputs/...).
+        New folder name = <source_name>_bXX (XX = running branch count of the source).
+        """
+        step_mgr = self._step_mgr(step_name)
+        step_config = step_mgr.load()
+
+        source = step_config.find_version(source_version_id)
+        if source is None:
+            raise VersionNotFoundError(
+                f"Source version id '{source_version_id}' not found in step '{step_name}'."
+            )
+
+        branch_index = step_mgr.next_branch_index(source_version_id)
+        new_name = with_clone_postfix(source.name, branch_index)
+
+        source_dir = step_mgr.version_path(source.name)
+        new_dir = step_mgr.version_path(new_name)
+        if new_dir.exists():
+            raise VersionAlreadyExistsError(f"Version folder '{new_name}' already exists.")
+        if not source_dir.exists():
+            raise VersionNotFoundError(f"Source version folder '{source_dir}' missing on disk.")
+
+        shutil.copytree(source_dir, new_dir)
+
+        new_version = Version(
+            id=str(uuid.uuid4()),
+            name=new_name,
+            parent=source.id,
+            branches=[],
+            jump_from=None,
+            jump_to=[],
+            created_at=str(date.today()),
+        )
+
+        # persist: register the clone, and record it on the parent's branch list
+        step_config = step_mgr.load()  # reload to avoid clobbering concurrent edits
+        step_config.versions.append(new_version)
+        parent = step_config.find_version(source.id)
+        parent.branches.append(new_version.id)
+        step_mgr.save(step_config)
+
+        return new_version
+
+    # ------------------------------------------------------------------ #
+    # F6 - Jump Step
+    # ------------------------------------------------------------------ #
+    def jump_step(
+        self,
+        from_step: str,
+        from_version_id: str,
+        to_step: str,
+    ) -> Version:
+        """
+        Create a new version in `to_step`, seeded from `from_version_id` living
+        in `from_step`:
+            - outputs/ of the source version -> data/ of the new version
+            - new folder name = <to_step naming-rule base>_j_<from_version_name>
+            - jump_from recorded on the new version
+            - jump_to appended on the source version
+        """
+        project_config = self.project_mgr.load()
+        if to_step not in project_config.step_order:
+            raise StepNotFoundError(f"Target step '{to_step}' is not part of this project's flow.")
+
+        from_step_mgr = self._step_mgr(from_step)
+        to_step_mgr = self._step_mgr(to_step)
+
+        from_step_config = from_step_mgr.load()
+        source = from_step_config.find_version(from_version_id)
+        if source is None:
+            raise VersionNotFoundError(
+                f"Source version id '{from_version_id}' not found in step '{from_step}'."
+            )
+
+        to_step_config = to_step_mgr.load()
+        version_index = to_step_mgr.next_version_index()
+        base_name = generate_base_name(
+            to_step_config.version_name_rule,
+            name=to_step.lower(),
+            version_index=version_index,
+        )
+        new_name = with_jump_postfix(base_name, source.name)
+
+        new_dir = to_step_mgr.version_path(new_name)
+        if new_dir.exists():
+            raise VersionAlreadyExistsError(f"Version folder '{new_name}' already exists.")
+
+        # Build the standard F3 skeleton first, then overlay outputs -> data
+        self._create_version_skeleton(new_dir)
+
+        source_outputs = from_step_mgr.version_path(source.name) / "outputs"
+        new_data = new_dir / "data"
+        if source_outputs.exists():
+            for item in source_outputs.iterdir():
+                dest = new_data / item.name
+                if item.is_dir():
+                    shutil.copytree(item, dest, dirs_exist_ok=True)
+                else:
+                    shutil.copy2(item, dest)
+
+        new_version = Version(
+            id=str(uuid.uuid4()),
+            name=new_name,
+            parent=None,
+            branches=[],
+            jump_from=JumpRef(step=from_step, version_id=source.id),
+            jump_to=[],
+            created_at=str(date.today()),
+        )
+        to_step_config = to_step_mgr.load()
+        to_step_config.versions.append(new_version)
+        to_step_mgr.save(to_step_config)
+
+        # record jump_to back on the source version, in its own step_config.yaml
+        from_step_config = from_step_mgr.load()
+        source = from_step_config.find_version(from_version_id)
+        source.jump_to.append(JumpRef(step=to_step, version_id=new_version.id))
+        from_step_mgr.save(from_step_config)
+
+        return new_version
+
+    # ------------------------------------------------------------------ #
+    # Delete
+    # ------------------------------------------------------------------ #
+    def delete_version(self, step_name: str, version_id: str, remove_folder: bool = True) -> None:
+        step_mgr = self._step_mgr(step_name)
+        config = step_mgr.load()
+        version = config.find_version(version_id)
+        if version is None:
+            raise VersionNotFoundError(f"Version id '{version_id}' not found in step '{step_name}'.")
+
+        if remove_folder:
+            version_dir = step_mgr.version_path(version.name)
+            if version_dir.exists():
+                shutil.rmtree(version_dir)
+
+        config.versions = [v for v in config.versions if v.id != version_id]
+        # detach from any parent's branch list
+        for v in config.versions:
+            if version_id in v.branches:
+                v.branches.remove(version_id)
+        step_mgr.save(config)

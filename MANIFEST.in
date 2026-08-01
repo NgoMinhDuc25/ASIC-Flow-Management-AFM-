@@ -1,0 +1,1 @@
+recursive-include afm/gui/assets *.png *.ico
