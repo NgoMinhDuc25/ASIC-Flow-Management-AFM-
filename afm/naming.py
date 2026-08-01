@@ -25,7 +25,7 @@ from .models import NamingRule
 
 def _default_component_value(component: str, name: str, version_index: int, when: date_cls) -> str:
     if component == "date":
-        return when.strftime("%b")            # "Jul"
+        return when.strftime("%m%d%Y")            # "07312026"
     if component == "name":
         return name
     if component == "version":
