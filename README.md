@@ -17,10 +17,6 @@
   <img alt="Status" src="https://img.shields.io/badge/status-active--development-yellow" />
 </p>
 
-<p align="center">
-  <img src="docs/screenshot.png" width="820" alt="AFM GUI screenshot" />
-</p>
-
 ---
 
 ## Mục lục
@@ -81,7 +77,7 @@ Ngoài ra:
 ## Ảnh minh họa
 
 <p align="center">
-  <img src="docs/screenshot.png" width="820" alt="AFM GUI - Flow Tree, Step Tree, Detail View, Actions Panel" />
+  <img src="public/gui_screenshot.png" width="820" alt="AFM GUI - Flow Tree, Step Tree, Detail View, Actions Panel" />
 </p>
 
 <p align="center"><i>
@@ -116,6 +112,12 @@ afm_project/
 
 ## Cài đặt
 
+```bash
+unzip afm_source_code.zip -d afm_project
+cd afm_project
+ls
+# afm/  tests/  pyproject.toml  README.md
+```
 Cách nhanh nhất — dùng script tự động (tạo venv, cài, đăng ký alias `afm-env`):
 
 ```bash
@@ -178,9 +180,9 @@ versions:
 - [x] F1–F6 core engine + unit test
 - [x] GUI PyQt5 (Flow Tree / Step Tree / Detail View / Actions Panel)
 - [x] CLI headless đầy đủ cho scripting/CI
-- [ ] **Execution Layer** — chạy trực tiếp Innovus/OpenROAD từ AFM
+- [ ] **Execution Layer** — chạy trực tiếp Cadence tools từ AFM
 - [ ] **Analysis** — so sánh WNS/TNS/area/power giữa các version
-- [ ] **Storage optimization** — clone bằng symlink/dedup thay vì copy toàn bộ
+- [ ] **More**
 
 ## Đóng góp
 
@@ -190,6 +192,10 @@ request trên repository của dự án.
 ## Nhà phát triển
 
 Phát triển và duy trì bởi **ducnm153**.
+
+<p align="center">
+  <img src="public/developer_ava.png" width="120" height="120" alt="AFM logo" />
+</p>
 
 ## Giấy phép
 
