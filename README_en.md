@@ -19,6 +19,11 @@
 
 ---
 
+## Languages
+
+- **[Vietnamese](README.md)**
+- **[English](README_en.md)**
+
 ## Table of Contents
 
 - [What is AFM?](#what-is-afm)

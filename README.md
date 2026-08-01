@@ -19,6 +19,11 @@
 
 ---
 
+## Ngôn ngữ
+
+- **[Tiếng Việt](README.md)**
+- **[Tiếng Anh](README_en.md)**
+
 ## Mục lục
 
 - [AFM là gì?](#afm-là-gì)
