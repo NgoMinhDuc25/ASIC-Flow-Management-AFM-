@@ -114,7 +114,12 @@ cd afm_project
 ls
 # afm/  tests/  pyproject.toml  README.md
 ```
-The fastest method — use the automated script (creates a venv, installs dependencies, and registers the `afm-env` alias):
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate       # Linux/macOS
+# .venv\Scripts\activate.bat    # Windows (if needed)
+```
 
 ```bash
 chmod +x install.sh
