@@ -3,6 +3,7 @@ import subprocess
 
 USERNAME = "NgoMinhDuc25"
 REPO_NAME = "All_My_Useful_Scripts_PRIVATE"
+INVALID_TOKEN_MSG = f"[YOUR TOKEN IS NOT VALID, PLEASE CONTACT TO {USERNAME} FOR MORE INFORMATION!]"
 
 env = os.environ.copy()
 env["GIT_TERMINAL_PROMPT"] = "0"

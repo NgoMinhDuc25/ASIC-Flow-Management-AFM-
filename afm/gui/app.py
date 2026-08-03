@@ -60,7 +60,7 @@ from ..models import NAMING_COMPONENTS
 from ..project_manager import ProjectManager
 from ..step_manager import StepManager
 from ..version_manager import VersionManager
-from ..github_service import process_pull_usefull_scripts, USERNAME, REPO_NAME
+from ..github_service import process_pull_usefull_scripts, USERNAME, REPO_NAME, INVALID_TOKEN_MSG
 
 # ---------------------------------------------------------------------- #
 # Theme
@@ -558,7 +558,7 @@ class AFMApp(QMainWindow):
             if process_rs_status:
                 QMessageBox.information(self, "Info", f"<Message> {process_rs_msg}")
             else:
-                QMessageBox.warning(self, "Failed", f"<Message> {process_rs_msg}")
+                QMessageBox.warning(self, "Failed", f"<Message> {process_rs_msg} \n {INVALID_TOKEN_MSG}")
         else:
             print(f"<{message}> !")
 
