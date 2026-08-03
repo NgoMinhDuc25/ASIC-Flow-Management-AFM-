@@ -26,6 +26,7 @@ Python 3.6 compatible on purpose:
     `typing.Optional` / `typing.Tuple` explicitly instead.
 """
 
+import os
 import platform
 import subprocess
 from pathlib import Path
@@ -51,6 +52,7 @@ from PyQt5.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QFileDialog
 )
 
 from ..exceptions import AFMError, ProjectNotFoundError
@@ -58,6 +60,7 @@ from ..models import NAMING_COMPONENTS
 from ..project_manager import ProjectManager
 from ..step_manager import StepManager
 from ..version_manager import VersionManager
+from ..github_service import process_pull_usefull_scripts, USERNAME, REPO_NAME, INVALID_TOKEN_MSG
 
 # ---------------------------------------------------------------------- #
 # Theme
@@ -312,6 +315,13 @@ class AFMApp(QMainWindow):
         nav_layout.addWidget(btn_jump)
         right_layout.addWidget(nav_box)
 
+        more_box = QGroupBox("More Actions")
+        more_layout = QHBoxLayout(more_box)
+        pull_btn = QPushButton("Useful Scripts [P]")
+        pull_btn.clicked.connect(self.action_request_pull_scripts)
+        more_layout.addWidget(pull_btn)
+        right_layout.addWidget(more_box)
+
         right_layout.addStretch(1)
         splitter.addWidget(right)
         splitter.setSizes([380, 800])
@@ -509,6 +519,50 @@ class AFMApp(QMainWindow):
         self._write_detail("\n".join(lines))
 
     # ------------------------------------------------------------------ #
+    # Actions: Pull Useful Scripts 
+    # ------------------------------------------------------------------ #
+
+    def action_request_pull_scripts(self) -> None:
+        token_private, ok = QInputDialog.getText(self, "Enter Token", "Token:", text="github_pat_XXXX")
+        if not ok or not token_private:
+            QMessageBox.warning(self, "Invalid", "Please provide your token to access this feature!!")
+            return
+        
+        sel_rs = self.select_folder()
+        status = sel_rs["status"]
+        message = sel_rs["msg"]
+        path = sel_rs["data"]
+        if status:
+            print(f"<{message}> Selected folder path: {path}")
+            reply = QMessageBox.question(
+                self, "Confirm???", 
+                f"Token: {token_private} \n Selected path: {path}",
+                QMessageBox.Yes | QMessageBox.No, 
+                QMessageBox.Yes # Nút mặc định khi bấm Enter
+            )
+            if reply == QMessageBox.No:
+                print("<Canceled!!!>")
+                return
+            
+            scripts_full_path = self.crate_new_folder(path, "common")
+            scripts_full_path_rs = scripts_full_path["path"]
+            scripts_full_path_status = scripts_full_path["status"]
+            scripts_full_path_msg = scripts_full_path["msg"]
+            if not scripts_full_path_status:
+                QMessageBox.warning(self, "Failed", f"<Message> {scripts_full_path_msg}")
+                return
+            
+            process_rs = process_pull_usefull_scripts(scripts_full_path_rs, token_private, USERNAME, REPO_NAME)
+            process_rs_status = process_rs["status"]
+            process_rs_msg = process_rs["msg"]
+            if process_rs_status:
+                QMessageBox.information(self, "Info", f"<Message> {process_rs_msg}")
+            else:
+                QMessageBox.warning(self, "Failed", f"<Message> {process_rs_msg} \n {INVALID_TOKEN_MSG}")
+        else:
+            print(f"<{message}> !")
+
+    # ------------------------------------------------------------------ #
     # Actions: Flow
     # ------------------------------------------------------------------ #
     def action_create_flow(self) -> None:
@@ -691,6 +745,44 @@ class AFMApp(QMainWindow):
             QMessageBox.warning(self, "AFM", "Select a version first (click a node in the Step Tree).")
             return None, None
         return self.selected_step, self.selected_version_id
+
+    def select_folder(self):
+        # Syntax: QFileDialog.getExistingDirectory(parent, caption, dir)
+        folder_path = QFileDialog.getExistingDirectory(
+            self, 
+            "Choose folder to pull useful scripts", 
+            ""     # Default path while open (current path)
+        )
+
+        if folder_path:
+            print(f"Folder Path: {folder_path}")
+            return {
+                "msg": "Complete.",
+                "data": f"{folder_path}",
+                "status": True
+            }
+        else:
+            return {
+                "msg": "Cancelled.",
+                "data": "./",
+                "status": False
+            }
+
+    def crate_new_folder(self, parent_dir, folder_name):
+        try:
+            full_path = os.path.join(parent_dir, folder_name)
+            os.makedirs(full_path, exist_ok=True)
+            return {
+                "status": True,
+                "msg": "Success",
+                "path": os.path.abspath(full_path)
+            }
+        except Exception as e:
+            return {
+                "status": False,
+                "msg": f"Failed: {str(e)}",
+                "path": None
+            }
 
 
 def launch_gui(project_root: Path) -> None:
