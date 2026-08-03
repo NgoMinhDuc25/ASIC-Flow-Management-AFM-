@@ -12,7 +12,7 @@ This module orchestrates ProjectManager + StepManager and touches the
 filesystem (folder creation / copying).
 """
 
-
+import distutils.dir_util
 import shutil
 import uuid
 from datetime import date
@@ -193,7 +193,8 @@ class VersionManager:
             for item in source_outputs.iterdir():
                 dest = new_data / item.name
                 if item.is_dir():
-                    shutil.copytree(item, dest, dirs_exist_ok=True)
+                    #shutil.copytree(item, dest, dirs_exist_ok=True)
+                    distutils.dir_util.copy_tree(str(item),  str(dest))
                 else:
                     shutil.copy2(item, dest)
 
