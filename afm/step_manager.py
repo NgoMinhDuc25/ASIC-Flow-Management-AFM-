@@ -19,7 +19,6 @@ from .yaml_io import load_yaml, dump_yaml
 
 STEP_CONFIG_FILENAME = ".step_config.yaml"
 
-
 class StepManager:
     """Owns a single step's step_config.yaml (naming rule + version registry)."""
 

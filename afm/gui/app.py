@@ -299,8 +299,8 @@ class AFMApp(QMainWindow):
         flow_layout = QHBoxLayout(flow_box)
         btn_create_flow = QPushButton("Create Flow")
         btn_create_flow.clicked.connect(self.action_create_flow)
-        btn_edit_flow = QPushButton("Edit Flow")
-        btn_edit_flow.clicked.connect(self.action_edit_flow)
+        btn_edit_flow = QPushButton("Open LIBS")
+        btn_edit_flow.clicked.connect(self.action_open_libs_folder)
         flow_layout.addWidget(btn_create_flow)
         flow_layout.addWidget(btn_edit_flow)
         right_layout.addWidget(flow_box)
@@ -541,6 +541,10 @@ class AFMApp(QMainWindow):
 
     def action_edit_flow(self) -> None:
         self.action_set_folder_rule()
+
+    def action_open_libs_folder(self) -> None:
+        pm = ProjectManager(self.project_root)
+        _open_in_file_explorer(pm.libs_path)
 
     # ------------------------------------------------------------------ #
     # Actions: Step
