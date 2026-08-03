@@ -26,6 +26,7 @@ Python 3.6 compatible on purpose:
     `typing.Optional` / `typing.Tuple` explicitly instead.
 """
 
+import os
 import platform
 import subprocess
 from pathlib import Path
@@ -543,7 +544,15 @@ class AFMApp(QMainWindow):
                 print("<Canceled!!!>")
                 return
             
-            process_rs = process_pull_usefull_scripts(path, token_private, USERNAME, REPO_NAME)
+            scripts_full_path = self.crate_new_folder(path, "common")
+            scripts_full_path_rs = scripts_full_path["path"]
+            scripts_full_path_status = scripts_full_path["status"]
+            scripts_full_path_msg = scripts_full_path["msg"]
+            if not scripts_full_path_status:
+                QMessageBox.warning(self, "Failed", f"<Message> {scripts_full_path_msg}")
+                return
+            
+            process_rs = process_pull_usefull_scripts(scripts_full_path_rs, token_private, USERNAME, REPO_NAME)
             process_rs_status = process_rs["status"]
             process_rs_msg = process_rs["msg"]
             if process_rs_status:
@@ -757,6 +766,22 @@ class AFMApp(QMainWindow):
                 "msg": "Cancelled.",
                 "data": "./",
                 "status": False
+            }
+
+    def crate_new_folder(self, parent_dir, folder_name):
+        try:
+            full_path = os.path.join(parent_dir, folder_name)
+            os.makedirs(full_path, exist_ok=True)
+            return {
+                "status": True,
+                "msg": "Success",
+                "path": os.path.abspath(full_path)
+            }
+        except Exception as e:
+            return {
+                "status": False,
+                "msg": f"Failed: {str(e)}",
+                "path": None
             }
 
 
