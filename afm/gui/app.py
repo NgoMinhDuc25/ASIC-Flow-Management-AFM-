@@ -59,6 +59,7 @@ from ..models import NAMING_COMPONENTS
 from ..project_manager import ProjectManager
 from ..step_manager import StepManager
 from ..version_manager import VersionManager
+from ..github_service import process_pull_usefull_scripts, USERNAME, REPO_NAME
 
 # ---------------------------------------------------------------------- #
 # Theme
@@ -525,7 +526,32 @@ class AFMApp(QMainWindow):
         if not ok or not token_private:
             QMessageBox.warning(self, "Invalid", "Please provide your token to access this feature!!")
             return
-        QMessageBox.information(self, "Info", f"{token_private}")
+        
+        sel_rs = self.select_folder()
+        status = sel_rs["status"]
+        message = sel_rs["msg"]
+        path = sel_rs["data"]
+        if status:
+            print(f"<{message}> Selected folder path: {path}")
+            reply = QMessageBox.question(
+                self, "Confirm???", 
+                f"Token: {token_private} \n Selected path: {path}",
+                QMessageBox.Yes | QMessageBox.No, 
+                QMessageBox.Yes # Nút mặc định khi bấm Enter
+            )
+            if reply == QMessageBox.No:
+                print("<Canceled!!!>")
+                return
+            
+            process_rs = process_pull_usefull_scripts(path, token_private, USERNAME, REPO_NAME)
+            process_rs_status = process_rs["status"]
+            process_rs_msg = process_rs["msg"]
+            if process_rs_status:
+                QMessageBox.information(self, "Info", f"<Message> {process_rs_msg}")
+            else:
+                QMessageBox.warning(self, "Failed", f"<Message> {process_rs_msg}")
+        else:
+            print(f"<{message}> !")
 
     # ------------------------------------------------------------------ #
     # Actions: Flow
@@ -721,8 +747,17 @@ class AFMApp(QMainWindow):
 
         if folder_path:
             print(f"Folder Path: {folder_path}")
+            return {
+                "msg": "Complete.",
+                "data": f"{folder_path}",
+                "status": True
+            }
         else:
-            print("Cancelled.")
+            return {
+                "msg": "Cancelled.",
+                "data": "./",
+                "status": False
+            }
 
 
 def launch_gui(project_root: Path) -> None:
