@@ -22,7 +22,7 @@ def process_pull_usefull_scripts(LOCAL_DIR, PAT_TOKEN, USERNAME, REPO_NAME):
             cwd=LOCAL_DIR,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            universal_newlines=True, # Thay thế cho text=True ở Python 3.6
             env=env
         )
 
@@ -32,7 +32,7 @@ def process_pull_usefull_scripts(LOCAL_DIR, PAT_TOKEN, USERNAME, REPO_NAME):
             cwd=LOCAL_DIR,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            universal_newlines=True,
             env=env
         )
 
@@ -56,7 +56,7 @@ def process_pull_usefull_scripts(LOCAL_DIR, PAT_TOKEN, USERNAME, REPO_NAME):
             ["git", "clone", REPO_URL, LOCAL_DIR],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
-            text=True,
+            universal_newlines=True,
             env=env
         )
 
