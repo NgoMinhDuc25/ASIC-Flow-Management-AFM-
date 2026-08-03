@@ -51,6 +51,7 @@ from PyQt5.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
+    QFileDialog
 )
 
 from ..exceptions import AFMError, ProjectNotFoundError
@@ -312,6 +313,13 @@ class AFMApp(QMainWindow):
         nav_layout.addWidget(btn_jump)
         right_layout.addWidget(nav_box)
 
+        more_box = QGroupBox("More Actions")
+        more_layout = QHBoxLayout(more_box)
+        pull_btn = QPushButton("Useful Scripts [P]")
+        pull_btn.clicked.connect(self.action_request_pull_scripts)
+        more_layout.addWidget(pull_btn)
+        right_layout.addWidget(more_box)
+
         right_layout.addStretch(1)
         splitter.addWidget(right)
         splitter.setSizes([380, 800])
@@ -509,6 +517,17 @@ class AFMApp(QMainWindow):
         self._write_detail("\n".join(lines))
 
     # ------------------------------------------------------------------ #
+    # Actions: Pull Useful Scripts 
+    # ------------------------------------------------------------------ #
+
+    def action_request_pull_scripts(self) -> None:
+        token_private, ok = QInputDialog.getText(self, "Enter Token", "Token:", text="github_pat_XXXX")
+        if not ok or not token_private:
+            QMessageBox.warning(self, "Invalid", "Please provide your token to access this feature!!")
+            return
+        QMessageBox.information(self, "Info", f"{token_private}")
+
+    # ------------------------------------------------------------------ #
     # Actions: Flow
     # ------------------------------------------------------------------ #
     def action_create_flow(self) -> None:
@@ -691,6 +710,19 @@ class AFMApp(QMainWindow):
             QMessageBox.warning(self, "AFM", "Select a version first (click a node in the Step Tree).")
             return None, None
         return self.selected_step, self.selected_version_id
+
+    def select_folder(self):
+        # Syntax: QFileDialog.getExistingDirectory(parent, caption, dir)
+        folder_path = QFileDialog.getExistingDirectory(
+            self, 
+            "Choose folder to pull useful scripts", 
+            ""     # Default path while open (current path)
+        )
+
+        if folder_path:
+            print(f"Folder Path: {folder_path}")
+        else:
+            print("Cancelled.")
 
 
 def launch_gui(project_root: Path) -> None:
