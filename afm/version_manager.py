@@ -78,6 +78,27 @@ class VersionManager:
             )
 
         self._create_version_skeleton(version_dir)
+        readme_path = version_dir / "README.md"
+        readme_content = f"""# Version: {base_name}
+        **Step:** {step_name}  
+        **Date Created:** {date.today()}  
+
+        ## 1. Goal / Description
+        - Note down the primary goal for this run (e.g., Fix slack timing, trial new placement strategy).
+
+        ## 2. Setting Changes / Overrides
+        - List any specific constraints, TCL variables, or parameters modified:
+        - `Parameter 1`: Value
+
+        ## 3. Results & Notes
+        - WNS / TNS:
+        - Area / Power:
+        - Key Takeaways:
+        """
+
+        # Write out file based utf-8 standard.
+        with open(readme_path, "w", encoding="utf-8") as f:
+            f.write(readme_content)
 
         version = Version(
             id=str(uuid.uuid4()),
