@@ -25,7 +25,7 @@ from .naming import generate_base_name, with_clone_postfix, with_jump_postfix
 from .project_manager import ProjectManager
 from .step_manager import StepManager
 
-
+README_PATH = "README.md"
 class VersionManager:
     def __init__(self, project_root: Path):
         self.project_root = Path(project_root)
@@ -78,7 +78,7 @@ class VersionManager:
             )
 
         self._create_version_skeleton(version_dir)
-        readme_path = version_dir / "README.md"
+        readme_path = version_dir / README_PATH
         readme_content = f"""# Version: {base_name}
         **Step:** {step_name}  
         **Date Created:** {date.today()}  

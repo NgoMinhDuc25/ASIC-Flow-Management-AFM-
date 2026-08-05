@@ -33,7 +33,7 @@ from pathlib import Path
 from typing import Optional, Tuple
 
 from PyQt5.QtCore import Qt, QUrl, QPoint
-from PyQt5.QtGui import QIcon, QDesktopServices
+from PyQt5.QtGui import QIcon, QDesktopServices, QFont
 from PyQt5.QtWidgets import (
     QAction,
     QApplication,
@@ -52,14 +52,17 @@ from PyQt5.QtWidgets import (
     QTreeWidgetItem,
     QVBoxLayout,
     QWidget,
-    QFileDialog
+    QFileDialog,
+    QTextBrowser,
+    QTabWidget,
+    QDialog
 )
 
 from ..exceptions import AFMError, ProjectNotFoundError
 from ..models import NAMING_COMPONENTS
 from ..project_manager import ProjectManager
 from ..step_manager import StepManager
-from ..version_manager import VersionManager
+from ..version_manager import VersionManager, README_PATH
 from ..github_service import process_pull_usefull_scripts, USERNAME, REPO_NAME, INVALID_TOKEN_MSG
 
 # ---------------------------------------------------------------------- #
@@ -184,6 +187,79 @@ def _load_icon() -> Optional[QIcon]:
             found = True
     return icon if found else None
 
+
+class MarkdownEditorDialog(QDialog):
+    """
+    Popup dialog supporting both reading (rendered Markdown) and editing 
+    README.md files. Fully compatible with Python 3.6 / CentOS 7.
+    """
+    def __init__(self, file_path: Path, parent=None) -> None:
+        super(MarkdownEditorDialog, self).__init__(parent)
+        self.file_path = Path(file_path)
+        
+        self.setWindowTitle("Markdown Editor - {}".format(self.file_path.name))
+        self.resize(750, 550)
+
+        layout = QVBoxLayout(self)
+
+        # Tab widget for switching between Edit and Preview
+        self.tabs = QTabWidget()
+        
+        # Tab 1: Editor
+        self.editor = QTextEdit()
+        self.editor.setFont(QFont("Monospace", 10))
+        
+        # Tab 2: Preview
+        self.preview = QTextBrowser()
+        self.preview.setFont(QFont("SansSerif", 10))
+
+        self.tabs.addTab(self.editor, "Edit")
+        self.tabs.addTab(self.preview, "Preview")
+        layout.addWidget(self.tabs)
+
+        self.tabs.currentChanged.connect(self._on_tab_changed)
+
+        # Buttons
+        btn_layout = QHBoxLayout()
+        self.btn_save = QPushButton("Save")
+        self.btn_save.clicked.connect(self._save_file)
+
+        self.btn_cancel = QPushButton("Close")
+        self.btn_cancel.clicked.connect(self.reject)
+
+        btn_layout.addStretch()
+        btn_layout.addWidget(self.btn_save)
+        btn_layout.addWidget(self.btn_cancel)
+        layout.addLayout(btn_layout)
+
+        self._load_file()
+
+    def _load_file(self) -> None:
+        if self.file_path.exists():
+            try:
+                with open(str(self.file_path), "r", encoding="utf-8") as f:
+                    content = f.read()
+                self.editor.setPlainText(content)
+                self.preview.setMarkdown(content)
+            except Exception as e:
+                QMessageBox.critical(self, "AFM", "Error reading file:\n{}".format(e))
+        else:
+            self.editor.setPlainText("# Description\nWrite your notes here...")
+
+    def _on_tab_changed(self, index: int) -> None:
+        if index == 1:  # Tab Preview
+            raw_text = self.editor.toPlainText()
+            self.preview.setMarkdown(raw_text)
+
+    def _save_file(self) -> None:
+        try:
+            content = self.editor.toPlainText()
+            with open(str(self.file_path), "w", encoding="utf-8") as f:
+                f.write(content)
+            QMessageBox.information(self, "AFM", "Saved {} successfully!".format(self.file_path.name))
+            self.accept()
+        except Exception as e:
+            QMessageBox.critical(self, "AFM", "Could not save file:\n{}".format(e))
 
 class AFMApp(QMainWindow):
     def __init__(self, project_root: Path) -> None:
@@ -734,6 +810,20 @@ class AFMApp(QMainWindow):
 
     def action_open_description(self) -> None:
         step, version_id = self._require_selected_version()
+        vm = VersionManager(self.project_root)
+        try:
+            path_ver_folder = vm.get_vertion_path(step, version_id)
+        except AFMError as e:
+            QMessageBox.critical(self, "AFM", str(e))
+            return
+        
+        if path_ver_folder is None:
+            QMessageBox.warning(self, "AFM", "Could not find folder path for this version.")
+            return
+        
+        readme_path = Path(path_ver_folder) / README_PATH
+        dialog = MarkdownEditorDialog(file_path=readme_path, parent=self)
+        dialog.exec_()
 
 
     # ------------------------------------------------------------------ #
