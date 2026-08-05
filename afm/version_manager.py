@@ -261,3 +261,21 @@ class VersionManager:
             if version_id in v.branches:
                 v.branches.remove(version_id)
         step_mgr.save(config)
+
+
+    # ------------------------------------------------------------------ #
+    # Get version path.
+    # ------------------------------------------------------------------ #
+    def get_vertion_path(self, step_name: str, version_id: str) -> Optional[Path]:
+        step_mgr = self._step_mgr(step_name)
+        config = step_mgr.load()
+        version = config.find_version(version_id)
+        if version is None:
+            raise VersionNotFoundError(f"Version id '{version_id}' not found in step '{step_name}'.")
+
+        version_dir = step_mgr.version_path(version.name)
+        if version_dir.exists():
+            return version_dir
+        return None
+
+

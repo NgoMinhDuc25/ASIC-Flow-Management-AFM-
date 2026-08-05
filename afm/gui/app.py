@@ -452,6 +452,7 @@ class AFMApp(QMainWindow):
         menu.addAction("Open folder", self.on_step_double_click_current)
         menu.addAction("Clone Version", self.action_clone_version)
         menu.addAction("Jump Step...", self.action_jump_step)
+        menu.addAction("Description", self.action_open_description)
         menu.addSeparator()
         menu.addAction("Delete Version", self.action_delete_version)
         menu.exec_(self.step_tree.viewport().mapToGlobal(point))
@@ -730,6 +731,10 @@ class AFMApp(QMainWindow):
         if self.selected_step == to_step:
             self.refresh_step_tree(to_step)
         QMessageBox.information(self, "AFM", "Created '{}' in step '{}'.".format(v.name, to_step))
+
+    def action_open_description(self) -> None:
+        step, version_id = self._require_selected_version()
+
 
     # ------------------------------------------------------------------ #
     # Helpers
