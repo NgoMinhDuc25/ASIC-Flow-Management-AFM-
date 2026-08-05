@@ -207,7 +207,7 @@ request trên repository của dự án.
 
 ## Nhà phát triển
 
-Phát triển và duy trì bởi **ducnm153**.
+Phát triển và duy trì bởi **ducnm153** A.K.A **NgoMinhDuc25**.
 
 <p align="center">
   <img src="public/developer_ava.png" width="120" height="120" alt="AFM logo" />
@@ -215,5 +215,4 @@ Phát triển và duy trì bởi **ducnm153**.
 
 ## Giấy phép
 
-Chưa xác định giấy phép chính thức cho dự án này — cập nhật mục này theo chính sách phân phối
-nội bộ/công ty trước khi công khai repository.
+**[MIT](LICENSE)** © **ducnm153**

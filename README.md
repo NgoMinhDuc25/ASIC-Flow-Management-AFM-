@@ -195,7 +195,7 @@ All contributions, bug reports, and feature requests are welcome! Please open an
 
 ## Developer
 
-Developed and maintained by **ducnm153**.
+Developed and maintained by **ducnm153** A.K.A **NgoMinhDuc25**.
 
 <p align="center">
   <img src="public/developer_ava.png" width="120" height="120" alt="AFM logo" />
@@ -203,4 +203,4 @@ Developed and maintained by **ducnm153**.
 
 ## License
 
-No official license has been determined for this project yet — update this section according to internal/company distribution policies before making the repository public.
+**[MIT](LICENSE)** © **ducnm153**
