@@ -5,8 +5,8 @@
 <h1 align="center">AFM — ASIC Flow Management</h1>
 
 <p align="center">
-  Công cụ quản lý cấu trúc thư mục &amp; version cho flow ASIC Physical Design.<br/>
-  Không phải EDA tool — AFM quản lý <b>flow, version, branch, và data lineage</b> quanh EDA tool của bạn.
+  Directory structure &amp; version management tool for the ASIC Physical Design flow.<br/>
+  Not an EDA tool — AFM manages the <b>flow, version, branch, and data lineage</b> around your EDA tools.
 </p>
 
 <p align="center">
@@ -19,103 +19,100 @@
 
 ---
 
-## Ngôn ngữ
+## Languages
 
-- **[Tiếng Việt](README.md)**
-- **[Tiếng Anh](README_en.md)**
+- **[Vietnamese](README_vi.md)**
+- **[English](README.md)**
 
-## Mục lục
+## Table of Contents
 
-- [AFM là gì?](#afm-là-gì)
-- [Tính năng chính](#tính-năng-chính)
-- [Ảnh minh họa](#ảnh-minh-họa)
-- [Cấu trúc dự án](#cấu-trúc-dự-án)
-- [Cài đặt](#cài-đặt)
-- [Sử dụng nhanh](#sử-dụng-nhanh)
-- [Data model](#data-model)
-- [Lộ trình phát triển](#lộ-trình-phát-triển)
-- [Đóng góp](#đóng-góp)
-- [Nhà phát triển](#nhà-phát-triển)
-- [Giấy phép](#giấy-phép)
+- [What is AFM?](#what-is-afm)
+- [Key Features](#key-features)
+- [Screenshots](#screenshots)
+- [Project Structure](#project-structure)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Data Model](#data-model)
+- [Roadmap](#roadmap)
+- [Contributing](#contributing)
+- [Developer](#developer)
+- [License](#license)
 
 ---
 
-## AFM là gì?
+## What is AFM?
 
-**AFM (ASIC Flow Management)** là một công cụ quản lý thư mục và phiên bản (version control)
-được thiết kế riêng cho quy trình ASIC Physical Design (Import → Floorplan → Placement → CTS →
-Routing → STA → Signoff...).
+**AFM (ASIC Flow Management)** is a directory and version control tool specifically designed for the ASIC Physical Design flow (Import → Floorplan → Placement → CTS → Routing → STA → Signoff...).
 
-Trong một dự án ASIC thực tế, mỗi bước (step) thường được chạy đi chạy lại nhiều lần với các
-tham số khác nhau, sinh ra hàng chục, hàng trăm thư mục kết quả không theo quy chuẩn nào — rất
-khó truy vết "version nào sinh ra từ version nào", "output của CTS này được dùng để chạy Route
-nào". AFM giải quyết đúng vấn đề đó bằng cách chuẩn hóa:
+In a real-world ASIC project, each step is often executed repeatedly with different parameters, generating dozens or hundreds of output directories without any standard convention. This makes it difficult to trace "which version was generated from which" or "which CTS output was used for this Route run." AFM solves this exact problem by standardizing:
 
-- Cấu trúc thư mục của từng step
-- Quy tắc đặt tên version
-- Việc nhân bản (clone/branch) một version để thử nghiệm song song
-- Việc chuyển tiếp dữ liệu giữa các step ("jump step"), có ghi lại lineage
+- The directory structure of each step
+- Version naming conventions
+- The cloning/branching of a version for parallel experimentation
+- The transfer of data between steps ("jump step"), while recording the data lineage
 
-AFM **không chạy** Innovus/OpenROAD/PrimeTime hay bất kỳ EDA tool nào — nó chỉ quản lý phần
-"xung quanh" các tool đó: thư mục, version, và mối quan hệ giữa chúng.
+AFM **does not run** Innovus, OpenROAD, PrimeTime, or any other EDA tool — it only manages the environment "around" those tools: directories, versions, and their relationships.
 
-## Tính năng chính
+## Key Features
 
-| # | Tính năng | Mô tả |
+| # | Feature | Description |
 |---|---|---|
-| **F1** | **Create Flow** | Khởi tạo project mới: tạo `project_config.yaml`, thư mục `LIBS/`, và toàn bộ step folder theo flow đã định nghĩa |
-| **F2** | **Version Naming Rule** | Tùy chỉnh quy tắc đặt tên version theo 3 thành phần `date` / `name` / `version`, bật/tắt và sắp xếp thứ tự tùy ý |
-| **F3** | **Step Folder Rule** | Định nghĩa các thư mục con bắt buộc/tùy chọn trong mỗi version (`data`, `outputs` luôn bắt buộc) |
-| **F4** | **Create Version** | Tạo version mới trong 1 step, tự sinh tên theo rule, gán UUID, dựng cấu trúc thư mục chuẩn |
-| **F5** | **Clone Version** | Nhân bản toàn bộ 1 version thành nhánh mới (`_bXX`), giữ liên kết parent ↔ branch |
-| **F6** | **Jump Step** | Chuyển `outputs/` của version hiện tại sang `data/` của version mới ở step kế tiếp, ghi lại lineage (`jump_from` / `jump_to`) |
+| **F1** | **Create Flow** | Initializes a new project: creates `project_config.yaml`, the `LIBS/` directory, and all step folders according to the defined flow. |
+| **F2** | **Version Naming Rule** | Customizes version naming conventions using 3 components (`date` / `name` / `version`), allowing you to toggle and sort them as desired. |
+| **F3** | **Step Folder Rule** | Defines mandatory and optional subdirectories within each version (`data` and `outputs` are always required). |
+| **F4** | **Create Version** | Creates a new version within a step, auto-generates the name based on rules, assigns a UUID, and builds the standard directory structure. |
+| **F5** | **Clone Version** | Clones an entire version into a new branch (e.g., `_bXX`), maintaining the parent ↔ branch relationship. |
+| **F6** | **Jump Step** | Transfers the `outputs/` of the current version to the `data/` of a new version in the next step, recording the lineage (`jump_from` / `jump_to`). |
 
-Ngoài ra:
+Additionally:
 
-- **GUI trực quan (PyQt5)**: Flow Tree, Step Tree, Detail View, Actions Panel — click để xem,
-  double-click để mở thư mục ngoài file explorer, chuột phải để thao tác nhanh
-- **CLI đầy đủ**: mọi thao tác đều có thể chạy headless, phù hợp scripting/CI
-- **Tương thích CentOS 7 / Rocky Linux**: code thuần Python 3.6+, không dùng cú pháp mới
-  (`from __future__ import annotations`, PEP 604/585...) để đảm bảo chạy được trên các
-  distro dùng Python 3.6 mặc định
+- **Intuitive GUI (PyQt5)**: Flow Tree, Step Tree, Detail View, Actions Panel — click to view, double-click to open directories in the file explorer, right-click for quick actions.
+- **Full CLI**: All operations can be run headless, making it highly suitable for scripting and CI pipelines.
+- **CentOS 7 / Rocky Linux Compatible**: Pure Python 3.6+ codebase, avoiding newer syntax (`from __future__ import annotations`, PEP 604/585...) to ensure seamless execution on distros using default Python 3.6 environments.
 
-## Ảnh minh họa
+## Screenshots
 
 <p align="center">
   <img src="public/gui_screenshot.png" width="820" alt="AFM GUI - Flow Tree, Step Tree, Detail View, Actions Panel" />
 </p>
-
 <p align="center"><i>
-Giao diện chính: Flow Tree + Step Tree (trái) · Detail View + Actions Panel (phải)
+Main Interface: Flow Tree + Step Tree (Left) · Detail View + Actions Panel (Right)
 </i></p>
 
-## Cấu trúc dự án
+<p align="center">
+  <img src="public/gui_screenshot2.png" width="820" alt="AFM GUI - Detail Version Window" />
+</p>
+<p align="center"><i>
+Popup Interface: Detail Version Window
+</i></p>
+
+## Project Structure
 
 ```
 afm_project/
 ├── afm/
-│   ├── models.py           # ProjectConfig, StepConfig, Version, NamingRule, FolderRules
-│   ├── yaml_io.py           # đọc/ghi YAML
-│   ├── project_manager.py   # F1 Create Flow, F3 Step Folder Rule
-│   ├── step_manager.py       # F2 Naming Rule, bookkeeping version/branch
-│   ├── naming.py             # sinh tên version folder + postfix clone/jump
+│   ├── models.py             # ProjectConfig, StepConfig, Version, NamingRule, FolderRules
+│   ├── yaml_io.py            # YAML read/write operations
+│   ├── project_manager.py    # F1 Create Flow, F3 Step Folder Rule
+│   ├── step_manager.py       # F2 Naming Rule, version/branch bookkeeping
+│   ├── naming.py             # Generate version folder names + clone/jump postfixes
 │   ├── version_manager.py    # F4 Create Version, F5 Clone Version, F6 Jump Step
-│   ├── tree.py               # render Flow Tree / Step Tree dạng text (CLI)
-│   ├── cli.py                # entry point `afm -init` + các subcommand headless
+│   ├── tree.py               # Render Flow Tree / Step Tree in text format (CLI)
+│   ├── cli.py                # Entry point `afm -init` + headless subcommands
 │   └── gui/
-│       ├── app.py            # GUI chính (PyQt5)
-│       └── assets/           # icon/avatar của app
+│       ├── app.py            # Main GUI application (PyQt5)
+│       └── assets/           # Application icons/avatars
 ├── docs/
 │   └── screenshot.png
 ├── tests/
-│   └── test_core.py          # unit test F1–F6
-├── install.sh                # script cài đặt tự động (venv + alias afm-env)
+│   └── test_core.py          # Unit tests for F1–F6
+├── install.sh                # Automated installation script (venv + afm-env alias)
 ├── pyproject.toml / setup.py
-├── INSTALL.md                 # hướng dẫn cài đặt chi tiết
+├── INSTALL.md                # Detailed installation guide
 └── README.md
 ```
 
-## Cài đặt
+## Installation
 
 ```bash
 unzip afm_source_code.zip -d afm_project
@@ -127,7 +124,7 @@ ls
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate       # Linux/macOS
-# .venv\Scripts\activate.bat    # Windows (nếu cần)
+# .venv\Scripts\activate.bat    # Windows (if needed)
 ```
 
 ```bash
@@ -135,30 +132,28 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Xem hướng dẫn đầy đủ (theo từng distro CentOS 7 / Rocky Linux / Ubuntu / macOS, xử lý sự cố...)
-tại **[INSTALL.md](INSTALL.md)**.
+For the complete guide (covering CentOS 7, Rocky Linux, Ubuntu, macOS, and troubleshooting), please refer to **[INSTALL.md](INSTALL.md)**.
 
-## Sử dụng nhanh
+## Quick Start
 
 ```bash
-# Kích hoạt môi trường (sau khi đã chạy install.sh)
+# Activate the environment (after running install.sh)
 afm-env
 
-# Mở GUI (theo đúng flow: cd vào thư mục project rồi gõ afm -init)
+# Launch GUI (follow the standard flow: cd into the project root then type afm -init)
 cd /path/to/project_root
 afm -init
 
-# Hoặc dùng CLI headless
-afm --path ./RISCV_PKL init --name RISCV_PKL \
-    --steps Import,Floorplan,Placement,CTS,PostCTS,Routing,STA,Signoff
+# Alternatively, use the headless CLI
+afm --path ./RISCV_PKL init --name RISCV_PKL     --steps Import,Floorplan,Placement,CTS,PostCTS,Routing,STA,Signoff
 
 afm --path ./RISCV_PKL create-version CTS cts        # F4
 afm --path ./RISCV_PKL clone-version CTS <version_id> # F5
 afm --path ./RISCV_PKL jump CTS <version_id> PostCTS  # F6
-afm --path ./RISCV_PKL tree --step CTS                # xem cây version
+afm --path ./RISCV_PKL tree --step CTS                # View version tree
 ```
 
-## Data model
+## Data Model
 
 ```yaml
 # project_config.yaml
@@ -185,29 +180,27 @@ versions:
     jump_to: [{step: PostCTS, version_id: uuid-010}]
 ```
 
-## Lộ trình phát triển
+## Roadmap
 
-- [x] F1–F6 core engine + unit test
-- [x] GUI PyQt5 (Flow Tree / Step Tree / Detail View / Actions Panel)
-- [x] CLI headless đầy đủ cho scripting/CI
-- [ ] **Execution Layer** — chạy trực tiếp Cadence tools từ AFM
-- [ ] **Analysis** — so sánh WNS/TNS/area/power giữa các version
+- [x] F1–F6 core engine + unit tests
+- [x] PyQt5 GUI (Flow Tree / Step Tree / Detail View / Actions Panel)
+- [x] Full headless CLI for scripting/CI integration
+- [ ] **Execution Layer** — Run Cadence (or other EDA) tools directly from AFM
+- [ ] **Analysis** — Compare WNS/TNS/area/power metrics across different versions
 - [ ] **More**
 
-## Đóng góp
+## Contributing
 
-Mọi ý kiến đóng góp, báo lỗi, hoặc đề xuất tính năng đều được hoan nghênh — mở issue hoặc pull
-request trên repository của dự án.
+All contributions, bug reports, and feature requests are welcome! Please open an issue or submit a pull request on the project's repository.
 
-## Nhà phát triển
+## Developer
 
-Phát triển và duy trì bởi **ducnm153**.
+Developed and maintained by **ducnm153**.
 
 <p align="center">
   <img src="public/developer_ava.png" width="120" height="120" alt="AFM logo" />
 </p>
 
-## Giấy phép
+## License
 
-Chưa xác định giấy phép chính thức cho dự án này — cập nhật mục này theo chính sách phân phối
-nội bộ/công ty trước khi công khai repository.
+No official license has been determined for this project yet — update this section according to internal/company distribution policies before making the repository public.
