@@ -213,8 +213,8 @@ class MarkdownEditorDialog(QDialog):
         self.preview = QTextBrowser()
         self.preview.setFont(QFont("SansSerif", 10))
 
-        self.tabs.addTab(self.editor, "Edit")
         self.tabs.addTab(self.preview, "Preview")
+        self.tabs.addTab(self.editor, "Edit")
         layout.addWidget(self.tabs)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
