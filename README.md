@@ -21,8 +21,8 @@
 
 ## Languages
 
-- **[Vietnamese](README.md)**
-- **[English](README_en.md)**
+- **[Vietnamese](README_vi.md)**
+- **[English](README.md)**
 
 ## Table of Contents
 

@@ -21,8 +21,8 @@
 
 ## Ngôn ngữ
 
-- **[Tiếng Việt](README.md)**
-- **[Tiếng Anh](README_en.md)**
+- **[Tiếng Việt](README_vi.md)**
+- **[Tiếng Anh](README.md)**
 
 ## Mục lục
 
