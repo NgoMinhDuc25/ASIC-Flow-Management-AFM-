@@ -25,7 +25,7 @@ from .naming import generate_base_name, with_clone_postfix, with_jump_postfix
 from .project_manager import ProjectManager
 from .step_manager import StepManager
 
-
+README_PATH = "README.md"
 class VersionManager:
     def __init__(self, project_root: Path):
         self.project_root = Path(project_root)
@@ -78,6 +78,27 @@ class VersionManager:
             )
 
         self._create_version_skeleton(version_dir)
+        readme_path = version_dir / README_PATH
+        readme_content = f"""# Version: {base_name}
+        **Step:** {step_name}  
+        **Date Created:** {date.today()}  
+
+        ## 1. Goal / Description
+        - Note down the primary goal for this run (e.g., Fix slack timing, trial new placement strategy).
+
+        ## 2. Setting Changes / Overrides
+        - List any specific constraints, TCL variables, or parameters modified:
+        - `Parameter 1`: Value
+
+        ## 3. Results & Notes
+        - WNS / TNS:
+        - Area / Power:
+        - Key Takeaways:
+        """
+
+        # Write out file based utf-8 standard.
+        with open(readme_path, "w", encoding="utf-8") as f:
+            f.write(readme_content)
 
         version = Version(
             id=str(uuid.uuid4()),
@@ -240,3 +261,21 @@ class VersionManager:
             if version_id in v.branches:
                 v.branches.remove(version_id)
         step_mgr.save(config)
+
+
+    # ------------------------------------------------------------------ #
+    # Get version path.
+    # ------------------------------------------------------------------ #
+    def get_vertion_path(self, step_name: str, version_id: str) -> Optional[Path]:
+        step_mgr = self._step_mgr(step_name)
+        config = step_mgr.load()
+        version = config.find_version(version_id)
+        if version is None:
+            raise VersionNotFoundError(f"Version id '{version_id}' not found in step '{step_name}'.")
+
+        version_dir = step_mgr.version_path(version.name)
+        if version_dir.exists():
+            return version_dir
+        return None
+
+
