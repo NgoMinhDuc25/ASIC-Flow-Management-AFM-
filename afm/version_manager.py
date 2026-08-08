@@ -289,6 +289,7 @@ class VersionManager:
         new_name_component: str,
         when: Optional[date] = None,
         overrides: Optional[Dict[str, str]] = None,
+        is_keep_branch_name_and_jump: bool = True
     ) -> Version:
         """
         Rename an existing version's name component while maintaining naming rules
@@ -340,8 +341,11 @@ class VersionManager:
             when=when,
             overrides=overrides,
         )
-        
-        full_new_name = new_base + postfix
+
+        if is_keep_branch_name_and_jump:
+            full_new_name = new_base + postfix
+        else:
+            full_new_name = new_base
 
         if full_new_name == current_name:
             return target_version  # No change

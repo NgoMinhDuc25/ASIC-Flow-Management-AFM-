@@ -920,7 +920,8 @@ class AFMApp(QMainWindow):
             updated_version = vm.edit_version_name(
                 step_name=step,
                 version_id=version_id,
-                new_name_component=new_name.strip()
+                new_name_component=new_name.strip(),
+                is_keep_branch_name_and_jump=False
             )
             self.refresh_step_tree(step)
             self._show_version_detail(step, updated_version.id)
