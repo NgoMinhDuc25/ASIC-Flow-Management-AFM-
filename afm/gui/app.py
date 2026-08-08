@@ -414,10 +414,13 @@ class AFMApp(QMainWindow):
         btn_create_version.clicked.connect(self.action_create_version)
         btn_clone_version = QPushButton("Clone Version")
         btn_clone_version.clicked.connect(self.action_clone_version)
+        btn_edit_name_version = QPushButton("Edit Name Version")
+        btn_edit_name_version.clicked.connect(self.action_edit_version_name)
         btn_delete_version = QPushButton("Delete Version")
         btn_delete_version.clicked.connect(self.action_delete_version)
         version_layout.addWidget(btn_create_version)
         version_layout.addWidget(btn_clone_version)
+        version_layout.addWidget(btn_edit_name_version)
         version_layout.addWidget(btn_delete_version)
         right_layout.addWidget(version_box)
 
@@ -900,6 +903,30 @@ class AFMApp(QMainWindow):
         readme_path = Path(path_ver_folder) / README_PATH
         dialog = MarkdownEditorDialog(file_path=readme_path, parent=self)
         dialog.exec_()
+
+    def action_edit_version_name(self) -> None:
+        step, version_id = self._require_selected_version()
+        if not step or not version_id:
+            return
+
+        new_name, ok = QInputDialog.getText(
+            self, "Edit Version Name", "New name component (e.g. 'cts_opt'):"
+        )
+        if not ok or not new_name.strip():
+            return
+
+        vm = VersionManager(self.project_root)
+        try:
+            updated_version = vm.edit_version_name(
+                step_name=step,
+                version_id=version_id,
+                new_name_component=new_name.strip()
+            )
+            self.refresh_step_tree(step)
+            self._show_version_detail(step, updated_version.id)
+            self._set_status("Renamed version to '{}'.".format(updated_version.name))
+        except AFMError as e:
+            QMessageBox.critical(self, "AFM", str(e))
 
 
     # ------------------------------------------------------------------ #

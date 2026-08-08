@@ -12,6 +12,7 @@ This module orchestrates ProjectManager + StepManager and touches the
 filesystem (folder creation / copying).
 """
 
+import os
 import distutils.dir_util
 import shutil
 import uuid
@@ -278,4 +279,87 @@ class VersionManager:
             return version_dir
         return None
 
+    # ------------------------------------------------------------------ #
+    # Edit Version Name
+    # ------------------------------------------------------------------ #
+    def edit_version_name(
+        self,
+        step_name: str,
+        version_id: str,
+        new_name_component: str,
+        when: Optional[date] = None,
+        overrides: Optional[Dict[str, str]] = None,
+    ) -> Version:
+        """
+        Rename an existing version's name component while maintaining naming rules
+        and existing postfixes (_bXX, _j_...).
+        
+        Compatible Python 3.6 / CentOS 7.
+        """
+        step_mgr = self._step_mgr(step_name)
+        step_config = step_mgr.load()
 
+        target_version = step_config.find_version(version_id)
+        if target_version is None:
+            raise VersionNotFoundError(
+                "Version id '{}' not found in step '{}'.".format(version_id, step_name)
+            )
+
+        # 1. Trích xuất version_index từ tên hiện tại hoặc giữ nguyên quy tắc
+        # Giữ lại postfix clone (_bXX) hoặc jump (_j_...) nếu có
+        current_name = target_version.name
+        postfix = ""
+        work_name = current_name
+
+       # 1. Tách hậu tố Clone (_bXX) ở CUỐI CÙNG chuỗi trước (nếu có)
+        # Ví dụ: "..._j_..._b01" -> work_name="..._j_...", clone_postfix="_b01"
+        if "_b" in work_name:
+            prefix, sep, b_num = work_name.rpartition("_b")
+            # Kiểm tra đảm bảo b_num là số (đặc trưng của branch index _b01, _b02)
+            if b_num.isdigit():
+                postfix = sep + b_num + postfix
+                work_name = prefix
+
+        # 2. Tách hậu tố Jump (_j_...) tiếp theo (nếu có)
+        # Ví dụ: "base_j_source" -> work_name="base", jump_postfix="_j_source"
+        if "_j_" in work_name:
+            prefix, sep, j_part = work_name.partition("_j_")
+            postfix = sep + j_part + postfix
+            work_name = prefix
+
+        try:
+            old_version_index = [v.id for v in step_config.versions].index(target_version.id) + 1
+        except ValueError:
+            old_version_index = 1
+
+        # 2. Generate new base_name follow by rule.
+        new_base = generate_base_name(
+            step_config.version_name_rule,
+            name=new_name_component,
+            version_index=old_version_index, # Or keep old index
+            when=when,
+            overrides=overrides,
+        )
+        
+        full_new_name = new_base + postfix
+
+        if full_new_name == current_name:
+            return target_version  # No change
+
+        old_dir = step_mgr.version_path(current_name)
+        new_dir = step_mgr.version_path(full_new_name)
+
+        if new_dir.exists():
+            raise VersionAlreadyExistsError(
+                "Target version folder '{}' already exists.".format(full_new_name)
+            )
+
+        # 3. Đổi tên thư mục trên ổ đĩa
+        if old_dir.exists():
+            os.rename(str(old_dir), str(new_dir))
+
+        # 4. Cập nhật metadata và lưu lại config
+        target_version.name = full_new_name
+        step_mgr.save(step_config)
+
+        return target_version
