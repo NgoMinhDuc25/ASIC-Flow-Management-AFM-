@@ -234,6 +234,8 @@ class ItemActionWidget(QWidget):
 
     def _on_star_click(self):
         print("Star clicked for version_id: {}".format(self.version_id))
+        if self.parent_app:
+            self.parent_app.action_pin_version()
         
 
     def _on_doc_click(self):
@@ -929,6 +931,21 @@ class AFMApp(QMainWindow):
         except AFMError as e:
             QMessageBox.critical(self, "AFM", str(e))
 
+    def action_pin_version(self) -> None:
+        step, version_id = self._require_selected_version()
+        if not step or not version_id:
+            return
+        
+        result = QMessageBox.question(self, 
+                                      'Pin Version', 
+                                      'Do you want to pin this version?', 
+                                        QMessageBox.Yes | QMessageBox.No, 
+                                        QMessageBox.Yes 
+                                      )
+        if result == QMessageBox.Yes:
+            print(f"You pinned version: {version_id}")
+        else:
+            print(f"Canceled version: {version_id}")
 
     # ------------------------------------------------------------------ #
     # Helpers
