@@ -25,3 +25,5 @@ htmlcov/
 # AFM sample/demo project data (do not version actual ASIC project data)
 demo_project/
 *.afm-bak
+
+.freebuff/

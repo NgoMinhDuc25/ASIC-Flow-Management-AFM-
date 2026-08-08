@@ -32,7 +32,7 @@ import subprocess
 from pathlib import Path
 from typing import Optional, Tuple
 
-from PyQt5.QtCore import Qt, QUrl, QPoint
+from PyQt5.QtCore import Qt, QUrl, QPoint, QSize
 from PyQt5.QtGui import QIcon, QDesktopServices, QFont
 from PyQt5.QtWidgets import (
     QAction,
@@ -55,7 +55,9 @@ from PyQt5.QtWidgets import (
     QFileDialog,
     QTextBrowser,
     QTabWidget,
-    QDialog
+    QDialog,
+    QStyle,
+    QHeaderView
 )
 
 from ..exceptions import AFMError, ProjectNotFoundError
@@ -147,6 +149,16 @@ QMenu::item:selected {{
 QStatusBar {{
     color: {fg_muted};
 }}
+QTreeWidget QPushButton {{
+    background-color: transparent;
+    border: none;
+    border-radius: 2px;
+    padding: 2px;
+}}
+QTreeWidget QPushButton:hover {{
+    background-color: #1E5F9E;
+}}
+
 """.format(
     bg_dark=BG_DARK, bg_panel=BG_PANEL, bg_accent=BG_ACCENT,
     fg_white=FG_WHITE, fg_muted=FG_MUTED, select_bg=SELECT_BG,
@@ -187,6 +199,49 @@ def _load_icon() -> Optional[QIcon]:
             found = True
     return icon if found else None
 
+# ------------------------------------------------------------------ #
+# Helper Class: Widget contain button for each step tree rows. 
+# ------------------------------------------------------------------ #
+class ItemActionWidget(QWidget):
+    def __init__(self, version_id, parent_app: AFMApp=None):
+        super(ItemActionWidget, self).__init__()
+        self.version_id = version_id
+        self.parent_app = parent_app
+
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(0, 0, 4, 0)
+        layout.setSpacing(4)
+
+        # 1. Star button
+        self.btn_star = QPushButton()
+        star_icon = self.style().standardIcon(QStyle.SP_DialogYesButton)
+        self.btn_star.setIcon(star_icon)
+        self.btn_star.setFixedSize(22, 22)
+        self.btn_star.setToolTip("Star / Favorite")
+        self.btn_star.clicked.connect(self._on_star_click)
+
+        # 2. Document button (Open README / Description)
+        self.btn_doc = QPushButton()
+        doc_icon = self.style().standardIcon(QStyle.SP_FileIcon)
+        self.btn_doc.setIcon(doc_icon)
+        self.btn_doc.setFixedSize(22, 22)
+        self.btn_doc.setToolTip("Open Description")
+        self.btn_doc.clicked.connect(self._on_doc_click)
+
+        layout.addStretch()
+        layout.addWidget(self.btn_star)
+        layout.addWidget(self.btn_doc)
+
+    def _on_star_click(self):
+        print("Star clicked for version_id: {}".format(self.version_id))
+        
+
+    def _on_doc_click(self):
+        if self.parent_app:
+            # Cập nhật lại ID phiên bản đang được chọn trước khi mở dialog
+            self.parent_app.selected_version_id = self.version_id
+            self.parent_app.action_open_description()
+
 
 class MarkdownEditorDialog(QDialog):
     """
@@ -213,8 +268,8 @@ class MarkdownEditorDialog(QDialog):
         self.preview = QTextBrowser()
         self.preview.setFont(QFont("SansSerif", 10))
 
-        self.tabs.addTab(self.preview, "Preview")
-        self.tabs.addTab(self.editor, "Edit")
+        self.tabs.addTab(self.preview, "Preview")   # Index 0 
+        self.tabs.addTab(self.editor, "Edit")       # Index 1 
         layout.addWidget(self.tabs)
 
         self.tabs.currentChanged.connect(self._on_tab_changed)
@@ -234,6 +289,8 @@ class MarkdownEditorDialog(QDialog):
 
         self._load_file()
 
+        self.tabs.setCurrentIndex(0)
+
     def _load_file(self) -> None:
         if self.file_path.exists():
             try:
@@ -247,7 +304,7 @@ class MarkdownEditorDialog(QDialog):
             self.editor.setPlainText("# Description\nWrite your notes here...")
 
     def _on_tab_changed(self, index: int) -> None:
-        if index == 1:  # Tab Preview
+        if index == 0:  # Tab Preview
             raw_text = self.editor.toPlainText()
             self.preview.setMarkdown(raw_text)
 
@@ -440,6 +497,17 @@ class AFMApp(QMainWindow):
 
     def refresh_step_tree(self, step_name: str) -> None:
         self.step_tree.clear()
+        
+        # 1. Thiết lập Tree có 2 cột (Cột 0: Tên version, Cột 1: Chứa nút bấm)
+        self.step_tree.setColumnCount(2)
+        self.step_tree.setHeaderHidden(True)
+        
+        # Giữ cột nút bấm cố định độ rộng ở bên phải
+        self.step_tree.header().setStretchLastSection(False)
+        self.step_tree.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.step_tree.header().setSectionResizeMode(1, QHeaderView.Fixed)
+        self.step_tree.setColumnWidth(1, 60) # Độ rộng vừa đủ chứa 2 nút
+
         sm = StepManager(self.project_root, step_name)
         try:
             config = sm.load()
@@ -457,12 +525,20 @@ class AFMApp(QMainWindow):
 
         def insert_node(parent_item, version):
             label = version.name + ("  (jump)" if version.jump_from else "")
-            item = QTreeWidgetItem([label])
+            
+            # Create item with 2 column for two buttons
+            item = QTreeWidgetItem([label, ""])
             item.setData(0, Qt.UserRole, (VERSION_ROLE, version.id))
+            
             if parent_item is None:
                 self.step_tree.addTopLevelItem(item)
             else:
                 parent_item.addChild(item)
+                
+            # 2. Mount widget of two buttons into the column
+            action_widget = ItemActionWidget(version_id=version.id, parent_app=self)
+            self.step_tree.setItemWidget(item, 1, action_widget)
+
             item.setExpanded(True)
             for child in by_parent.get(version.id, []):
                 insert_node(item, child)
