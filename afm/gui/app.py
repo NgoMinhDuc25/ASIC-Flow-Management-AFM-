@@ -203,7 +203,7 @@ def _load_icon() -> Optional[QIcon]:
 # Helper Class: Widget contain button for each step tree rows. 
 # ------------------------------------------------------------------ #
 class ItemActionWidget(QWidget):
-    def __init__(self, version_id, parent_app: AFMApp=None):
+    def __init__(self, version_id, parent_app: Optional["AFMApp"]=None):
         super(ItemActionWidget, self).__init__()
         self.version_id = version_id
         self.parent_app = parent_app
